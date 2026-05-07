@@ -1,0 +1,28 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { BRollPoint, DownloadProgressEvent, Project, VideoCandidate } from "./types";
+
+export const ipc = {
+  projectCreate: (name: string, text_voiceover: string) =>
+    invoke<Project>("project_create", { name, textVoiceover: text_voiceover }),
+  projectLoad: (slug: string) => invoke<Project>("project_load", { slug }),
+  projectList: () => invoke<Project[]>("project_list"),
+  settingsSetAnthropicKey: (key: string) =>
+    invoke<void>("settings_set_anthropic_key", { key }),
+  settingsTestAnthropic: () => invoke<boolean>("settings_test_anthropic"),
+  extractionRun: () => invoke<BRollPoint[]>("extraction_run"),
+  searchRun: (keyword: string) => invoke<VideoCandidate[]>("search_run", { keyword }),
+  pickVideo: (point_id: string, candidate: VideoCandidate) =>
+    invoke<string>("pick_video", { pointId: point_id, candidate }),
+  skipPoint: (point_id: string) => invoke<void>("skip_point", { pointId: point_id }),
+  openProjectFolder: () => invoke<void>("open_project_folder"),
+};
+
+export const events = {
+  onProjectUpdated: (cb: (p: Project) => void): Promise<UnlistenFn> =>
+    listen<Project>("project.updated", (e) => cb(e.payload)),
+  onDownloadProgress: (cb: (e: DownloadProgressEvent) => void): Promise<UnlistenFn> =>
+    listen<DownloadProgressEvent>("download.progress", (e) => cb(e.payload)),
+  onDownloadComplete: (cb: (e: { point_id: string; output: string }) => void): Promise<UnlistenFn> =>
+    listen<{ point_id: string; output: string }>("download.complete", (e) => cb(e.payload)),
+};
