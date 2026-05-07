@@ -37,9 +37,9 @@ dirs = "5"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 async-trait = "0.1"
+which = "6"
 
 [dev-dependencies]
 tempfile = "3"
 mockito = "1"
-which = "6"
 
