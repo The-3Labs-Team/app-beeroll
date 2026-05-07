@@ -7,12 +7,7 @@ pub mod extractor;
 pub mod youtube_search;
 pub mod video_processor;
 pub mod download_manager;
-
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+pub mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -23,12 +18,26 @@ pub fn run() {
         )
         .try_init();
 
+    use crate::commands::*;
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .manage(build_state())
+        .invoke_handler(tauri::generate_handler![
+            project_create,
+            project_load,
+            project_list,
+            settings_set_anthropic_key,
+            settings_test_anthropic,
+            extraction_run,
+            search_run,
+            pick_video,
+            skip_point,
+            open_project_folder,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
