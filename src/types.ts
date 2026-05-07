@@ -45,12 +45,29 @@ export type ProviderId =
   | "claude_cli"
   | "codex_cli";
 
+export type TranscriptionProviderId = "groq_api" | "openai_api";
+
 export interface AppSettings {
   selected_provider: ProviderId;
   anthropic_model: string;
   ollama_base_url: string | null;
   claude_cli_path: string | null;
   codex_cli_path: string | null;
+  transcription_provider: TranscriptionProviderId;
+}
+
+export interface TranscriptionResult {
+  segments: { start: number; end: number; text: string }[];
+  full_text: string;
+  duration_sec: number;
+}
+
+export interface TranscriptionProgressEvent {
+  step: "start" | "end";
+  provider?: string;
+  message?: string;
+  duration_sec?: number;
+  segments?: number;
 }
 
 export interface ToolStatus {
