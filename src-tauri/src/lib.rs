@@ -9,6 +9,7 @@ pub mod youtube_search;
 pub mod video_processor;
 pub mod download_manager;
 pub mod toolchain_manager;
+pub mod export;
 pub mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
