@@ -18,7 +18,7 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": "default-src 'self' tauri: ipc: http://ipc.localhost; img-src 'self' data: https://i.ytimg.com https://*.ytimg.com asset: http://asset.localhost; frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com; media-src 'self' https://*.googlevideo.com; connect-src 'self' ipc: http://ipc.localhost https://api.anthropic.com; style-src 'self' 'unsafe-inline'"
     }
   },
   "bundle": {
