@@ -8,6 +8,7 @@ import { ImportPage } from "./pages/ImportPage";
 import { ReviewPage } from "./pages/ReviewPage";
 import { PickerPage } from "./pages/PickerPage";
 import { SummaryPage } from "./pages/SummaryPage";
+import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
   const setProject = useStore((s) => s.setProject);
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/picker" element={<PickerPage />} />
         <Route path="/summary" element={<SummaryPage />} />
       </Routes>
+      <Toaster />
     </BrowserRouter>
   );
 }

@@ -45,6 +45,8 @@ export const ipc = {
     invoke<string>("pick_video", { pointId: point_id, candidate }),
   skipPoint: (point_id: string) => invoke<void>("skip_point", { pointId: point_id }),
   openProjectFolder: () => invoke<void>("open_project_folder"),
+  exportEdl: (outputPath: string) => invoke<void>("export_edl", { outputPath }),
+  exportFcpxml: (outputPath: string) => invoke<void>("export_fcpxml", { outputPath }),
 };
 
 export const events = {
