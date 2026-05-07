@@ -48,6 +48,7 @@ pub fn run() {
             open_project_folder,
             toolchain_status,
             ai_cli_status,
+            first_run_status,
             export_edl,
             export_fcpxml,
         ])

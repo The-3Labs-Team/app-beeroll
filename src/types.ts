@@ -81,3 +81,17 @@ export interface AiCliStatus {
   codex: ToolStatus;
   ollama: ToolStatus;
 }
+
+export interface ToolchainStatus {
+  ytdlp: ToolStatus;
+  ffmpeg: ToolStatus;
+}
+
+export interface FirstRunStatus {
+  is_first_run: boolean;
+  has_anthropic_key: boolean;
+  has_openai_key: boolean;
+  has_groq_key: boolean;
+  toolchain: ToolchainStatus;
+  ai_clis: AiCliStatus;
+}

@@ -5,10 +5,11 @@ use crate::download_manager::DownloadManager;
 use crate::error::{AppError, AppResult};
 use crate::extractor::BRollExtractor;
 use crate::project_store::ProjectStore;
-use crate::settings_store::{AppSettings, SettingsStore};
+use crate::settings_store::{self, AppSettings, SettingsStore};
 use crate::transcription::{self, TranscriptionConfig, TranscriptionResult};
 use crate::video_processor::VideoProcessor;
 use crate::youtube_search::YouTubeSearch;
+use serde::Serialize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
@@ -422,6 +423,38 @@ pub async fn toolchain_status() -> AppResult<toolchain_manager::ToolchainStatus>
 #[tauri::command]
 pub async fn ai_cli_status() -> AppResult<toolchain_manager::AiCliStatus> {
     Ok(toolchain_manager::detect_ai_clis().await)
+}
+
+/// Aggregated state used by the frontend onboarding modal: whether settings
+/// were ever persisted, which API keys are present in the keyring, and the
+/// detection results for external CLIs and binaries.
+#[derive(Debug, Serialize, Clone)]
+pub struct FirstRunStatus {
+    pub is_first_run: bool,
+    pub has_anthropic_key: bool,
+    pub has_openai_key: bool,
+    pub has_groq_key: bool,
+    pub toolchain: toolchain_manager::ToolchainStatus,
+    pub ai_clis: toolchain_manager::AiCliStatus,
+}
+
+#[tauri::command]
+pub async fn first_run_status() -> AppResult<FirstRunStatus> {
+    let settings_path = settings_store::SettingsStore::settings_path();
+    let is_first_run = !settings_path.exists();
+    let has_anthropic_key = settings_store::SettingsStore::get_anthropic_key()?.is_some();
+    let has_openai_key = settings_store::SettingsStore::get_openai_key()?.is_some();
+    let has_groq_key = settings_store::SettingsStore::get_groq_key()?.is_some();
+    let toolchain = toolchain_manager::detect_toolchain().await;
+    let ai_clis = toolchain_manager::detect_ai_clis().await;
+    Ok(FirstRunStatus {
+        is_first_run,
+        has_anthropic_key,
+        has_openai_key,
+        has_groq_key,
+        toolchain,
+        ai_clis,
+    })
 }
 
 #[tauri::command]

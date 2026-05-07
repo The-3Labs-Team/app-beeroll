@@ -133,6 +133,13 @@ impl SettingsStore {
 
     /// Default location of the JSON settings file.
     fn default_settings_path() -> PathBuf {
+        Self::settings_path()
+    }
+
+    /// Public accessor for the JSON settings file location. Used by callers
+    /// that need to know whether the file already exists (e.g. first-run
+    /// detection) without performing a full load.
+    pub fn settings_path() -> PathBuf {
         dirs::config_dir()
             .unwrap_or_else(|| PathBuf::from("."))
             .join("video-broll")
