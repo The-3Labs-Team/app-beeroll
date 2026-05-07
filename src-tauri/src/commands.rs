@@ -424,6 +424,32 @@ pub async fn ai_cli_status() -> AppResult<toolchain_manager::AiCliStatus> {
     Ok(toolchain_manager::detect_ai_clis().await)
 }
 
+#[tauri::command]
+pub async fn export_edl(state: State<'_, AppState>, output_path: String) -> AppResult<()> {
+    let store = state
+        .current_project
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?;
+    let project = store.project().await;
+    let project_dir = state.projects_root.join(&project.slug);
+    crate::export::export_edl(&project, std::path::Path::new(&output_path), &project_dir).await
+}
+
+#[tauri::command]
+pub async fn export_fcpxml(state: State<'_, AppState>, output_path: String) -> AppResult<()> {
+    let store = state
+        .current_project
+        .read()
+        .await
+        .clone()
+        .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?;
+    let project = store.project().await;
+    let project_dir = state.projects_root.join(&project.slug);
+    crate::export::export_fcpxml(&project, std::path::Path::new(&output_path), &project_dir).await
+}
+
 pub fn build_state() -> AppState {
     AppState {
         current_project: RwLock::new(None),

@@ -48,6 +48,8 @@ pub fn run() {
             open_project_folder,
             toolchain_status,
             ai_cli_status,
+            export_edl,
+            export_fcpxml,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
