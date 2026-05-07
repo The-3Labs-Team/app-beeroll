@@ -102,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn create_persists_project_json() {
         let tmp = TempDir::new().unwrap();
-        let store = ProjectStore::create(tmp.path(), "Test Episode", dummy_voiceover())
+        let _store = ProjectStore::create(tmp.path(), "Test Episode", dummy_voiceover())
             .await
             .unwrap();
         let pj_path = tmp.path().join("test-episode").join("project.json");

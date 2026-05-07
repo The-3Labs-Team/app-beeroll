@@ -4756,6 +4756,7 @@ name = "video-broll"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "dirs 5.0.1",
  "keyring",
