@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ipc } from "../ipc";
-import type { AiCliStatus, AppSettings, ProviderId } from "../types";
+import type {
+  AiCliStatus,
+  AppSettings,
+  ProviderId,
+  TranscriptionProviderId,
+} from "../types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -22,12 +27,23 @@ const PROVIDERS: ProviderOption[] = [
   { id: "codex_cli", label: "Codex CLI", kind: "cli", cliKey: "codex" },
 ];
 
+interface TranscriptionOption {
+  id: TranscriptionProviderId;
+  label: string;
+}
+
+const TRANSCRIPTION_PROVIDERS: TranscriptionOption[] = [
+  { id: "groq_api", label: "Groq Whisper (default)" },
+  { id: "openai_api", label: "OpenAI Whisper" },
+];
+
 export function SettingsPage() {
   const nav = useNavigate();
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
+  const [groqKey, setGroqKey] = useState("");
   const [cliStatus, setCliStatus] = useState<AiCliStatus | null>(null);
   const [status, setStatus] = useState<Status>("idle");
   const [err, setErr] = useState<string>("");
@@ -65,6 +81,8 @@ export function SettingsPage() {
     setSettings({ ...settings, selected_provider: id });
   const updateOllamaUrl = (v: string) =>
     setSettings({ ...settings, ollama_base_url: v.trim() === "" ? null : v });
+  const updateTranscriptionProvider = (id: TranscriptionProviderId) =>
+    setSettings({ ...settings, transcription_provider: id });
 
   const save = async () => {
     setStatus("saving");
@@ -76,6 +94,9 @@ export function SettingsPage() {
       }
       if (openaiKey.trim() !== "") {
         await ipc.settingsSetOpenaiKey(openaiKey.trim());
+      }
+      if (groqKey.trim() !== "") {
+        await ipc.settingsSetGroqKey(groqKey.trim());
       }
       await ipc.settingsSave(settings);
 
@@ -212,6 +233,53 @@ export function SettingsPage() {
         {status === "error" && err && (
           <p className="text-red-600 text-sm">{err}</p>
         )}
+      </section>
+
+      <section className="space-y-4 mt-10">
+        <h2 className="text-xl font-semibold">Transcription provider</h2>
+        <p className="text-muted-foreground text-sm">
+          Used when a project's voiceover is an audio file. Both providers
+          share an OpenAI-compatible Whisper API.
+        </p>
+
+        <div className="space-y-3">
+          {TRANSCRIPTION_PROVIDERS.map((p) => (
+            <label
+              key={p.id}
+              className="block border border-input rounded-md p-4 cursor-pointer hover:bg-accent/40"
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="transcription_provider"
+                  checked={settings.transcription_provider === p.id}
+                  onChange={() => updateTranscriptionProvider(p.id)}
+                />
+                <span className="font-medium flex-1">{p.label}</span>
+              </div>
+              {settings.transcription_provider === p.id && p.id === "groq_api" && (
+                <div className="mt-3 space-y-2">
+                  <label className="text-sm text-muted-foreground">
+                    Groq API key
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="gsk_... (leave blank to keep existing key)"
+                    value={groqKey}
+                    onChange={(e) => setGroqKey(e.target.value)}
+                  />
+                </div>
+              )}
+              {settings.transcription_provider === p.id &&
+                p.id === "openai_api" && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    Uses the OpenAI API key configured above for the AI
+                    provider section.
+                  </p>
+                )}
+            </label>
+          ))}
+        </div>
       </section>
     </div>
   );
