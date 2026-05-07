@@ -1,50 +1,37 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { events } from "./ipc";
+import { useStore } from "./store";
+import { ProjectsPage } from "./pages/ProjectsPage";
+import { SettingsPage } from "./pages/SettingsPage";
+import { ImportPage } from "./pages/ImportPage";
+import { ReviewPage } from "./pages/ReviewPage";
+import { PickerPage } from "./pages/PickerPage";
+import { SummaryPage } from "./pages/SummaryPage";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+export default function App() {
+  const setProject = useStore((s) => s.setProject);
+  const setDownloadProgress = useStore((s) => s.setDownloadProgress);
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+  useEffect(() => {
+    let off1: (() => void) | undefined;
+    let off2: (() => void) | undefined;
+    events.onProjectUpdated(setProject).then((u) => { off1 = u; });
+    events.onDownloadProgress(setDownloadProgress).then((u) => { off2 = u; });
+    return () => { off1?.(); off2?.(); };
+  }, [setProject, setDownloadProgress]);
 
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/projects" />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/import" element={<ImportPage />} />
+        <Route path="/review" element={<ReviewPage />} />
+        <Route path="/picker" element={<PickerPage />} />
+        <Route path="/summary" element={<SummaryPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
-
-export default App;
