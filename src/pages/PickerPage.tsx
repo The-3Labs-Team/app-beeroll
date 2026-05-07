@@ -26,8 +26,13 @@ export function PickerPage() {
 
   useEffect(() => {
     if (!project) return;
+    if (project.broll_points.length === 0) return;
     const next = project.broll_points.findIndex((p) => p.status !== "done" && p.status !== "skipped");
-    if (next >= 0) setCurrentIndex(next);
+    if (next === -1) {
+      nav("/summary");
+      return;
+    }
+    setCurrentIndex(next);
   }, [project?.slug]);
 
   useEffect(() => {
