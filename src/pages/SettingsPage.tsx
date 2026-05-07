@@ -1,30 +1,164 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ipc } from "../ipc";
+import type { AiCliStatus, AppSettings, ProviderId } from "../types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+type Status = "idle" | "saving" | "testing" | "ok" | "error";
+
+interface ProviderOption {
+  id: ProviderId;
+  label: string;
+  kind: "api" | "ollama" | "cli";
+  cliKey?: keyof AiCliStatus;
+}
+
+const PROVIDERS: ProviderOption[] = [
+  { id: "anthropic_api", label: "Anthropic API", kind: "api" },
+  { id: "openai_api", label: "OpenAI API", kind: "api" },
+  { id: "ollama", label: "Ollama (local)", kind: "ollama", cliKey: "ollama" },
+  { id: "claude_cli", label: "Claude CLI", kind: "cli", cliKey: "claude" },
+  { id: "codex_cli", label: "Codex CLI", kind: "cli", cliKey: "codex" },
+];
+
 export function SettingsPage() {
   const nav = useNavigate();
-  const [key, setKey] = useState("");
-  const [status, setStatus] = useState<"idle"|"saving"|"testing"|"ok"|"error">("idle");
+
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [anthropicKey, setAnthropicKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [cliStatus, setCliStatus] = useState<AiCliStatus | null>(null);
+  const [status, setStatus] = useState<Status>("idle");
   const [err, setErr] = useState<string>("");
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [s, c] = await Promise.all([ipc.settingsLoad(), ipc.aiCliStatus()]);
+        if (cancelled) return;
+        setSettings(s);
+        setCliStatus(c);
+      } catch (e) {
+        setErr(String(e));
+        setStatus("error");
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!settings) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto">
+        <p className="text-muted-foreground">Loading settings…</p>
+      </div>
+    );
+  }
+
+  const selected = settings.selected_provider;
+
+  const updateProvider = (id: ProviderId) =>
+    setSettings({ ...settings, selected_provider: id });
+  const updateOllamaUrl = (v: string) =>
+    setSettings({ ...settings, ollama_base_url: v.trim() === "" ? null : v });
+
   const save = async () => {
-    if (!key.startsWith("sk-ant-")) {
-      setStatus("error"); setErr("API key should start with sk-ant-");
-      return;
-    }
     setStatus("saving");
+    setErr("");
     try {
-      await ipc.settingsSetAnthropicKey(key);
+      // Persist any non-empty API keys before saving the settings & testing.
+      if (anthropicKey.trim() !== "") {
+        await ipc.settingsSetAnthropicKey(anthropicKey.trim());
+      }
+      if (openaiKey.trim() !== "") {
+        await ipc.settingsSetOpenaiKey(openaiKey.trim());
+      }
+      await ipc.settingsSave(settings);
+
       setStatus("testing");
-      const ok = await ipc.settingsTestAnthropic();
-      if (ok) { setStatus("ok"); setErr(""); }
-      else { setStatus("error"); setErr("API key set but test ping did not succeed."); }
+      const ok = await ipc.settingsTestProvider(selected);
+      if (ok) {
+        setStatus("ok");
+      } else {
+        setStatus("error");
+        setErr("Settings saved, but provider test ping did not succeed.");
+      }
     } catch (e) {
-      setStatus("error"); setErr(String(e));
+      setStatus("error");
+      setErr(String(e));
     }
+  };
+
+  const renderCliBadge = (cliKey: keyof AiCliStatus) => {
+    if (!cliStatus) {
+      return (
+        <span className="text-muted-foreground text-xs">Detecting…</span>
+      );
+    }
+    const tool = cliStatus[cliKey];
+    if (tool.found) {
+      return (
+        <span className="text-green-600 text-xs">
+          Rilevato ✓ {tool.path ? `(${tool.path})` : ""}
+        </span>
+      );
+    }
+    return <span className="text-red-600 text-xs">Non installato ✗</span>;
+  };
+
+  const renderProviderConfig = (p: ProviderOption) => {
+    if (selected !== p.id) return null;
+    if (p.id === "anthropic_api") {
+      return (
+        <div className="mt-3 space-y-2">
+          <label className="text-sm text-muted-foreground">Anthropic API key</label>
+          <Input
+            type="password"
+            placeholder="sk-ant-... (leave blank to keep existing key)"
+            value={anthropicKey}
+            onChange={(e) => setAnthropicKey(e.target.value)}
+          />
+        </div>
+      );
+    }
+    if (p.id === "openai_api") {
+      return (
+        <div className="mt-3 space-y-2">
+          <label className="text-sm text-muted-foreground">OpenAI API key</label>
+          <Input
+            type="password"
+            placeholder="sk-... (leave blank to keep existing key)"
+            value={openaiKey}
+            onChange={(e) => setOpenaiKey(e.target.value)}
+          />
+        </div>
+      );
+    }
+    if (p.id === "ollama") {
+      return (
+        <div className="mt-3 space-y-2">
+          <label className="text-sm text-muted-foreground">
+            Ollama base URL (default <code>http://localhost:11434</code>)
+          </label>
+          <Input
+            type="text"
+            placeholder="http://localhost:11434"
+            value={settings.ollama_base_url ?? ""}
+            onChange={(e) => updateOllamaUrl(e.target.value)}
+          />
+        </div>
+      );
+    }
+    // CLI providers — nothing extra to configure beyond auto-detection.
+    return (
+      <p className="mt-3 text-sm text-muted-foreground">
+        The binary is resolved via your <code>PATH</code> automatically.
+      </p>
+    );
   };
 
   return (
@@ -35,21 +169,49 @@ export function SettingsPage() {
       </header>
 
       <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Anthropic API key</h2>
+        <h2 className="text-xl font-semibold">AI provider</h2>
         <p className="text-muted-foreground text-sm">
-          Get one at <span className="underline">console.anthropic.com</span>. Stored in your system keychain, never on disk.
+          Choose how the app generates B-roll suggestions. API keys are stored in your
+          system keychain; everything else lives in <code>~/.config/video-broll/settings.json</code>.
         </p>
-        <Input
-          type="password"
-          placeholder="sk-ant-..."
-          value={key}
-          onChange={(e) => setKey(e.target.value)}
-        />
-        <Button onClick={save} disabled={status === "saving" || status === "testing"}>
-          {status === "saving" ? "Saving…" : status === "testing" ? "Testing…" : "Save & test"}
+
+        <div className="space-y-3">
+          {PROVIDERS.map((p) => (
+            <label
+              key={p.id}
+              className="block border border-input rounded-md p-4 cursor-pointer hover:bg-accent/40"
+            >
+              <div className="flex items-center gap-3">
+                <input
+                  type="radio"
+                  name="provider"
+                  checked={selected === p.id}
+                  onChange={() => updateProvider(p.id)}
+                />
+                <span className="font-medium flex-1">{p.label}</span>
+                {p.cliKey && renderCliBadge(p.cliKey)}
+              </div>
+              {renderProviderConfig(p)}
+            </label>
+          ))}
+        </div>
+
+        <Button
+          onClick={save}
+          disabled={status === "saving" || status === "testing"}
+        >
+          {status === "saving"
+            ? "Saving…"
+            : status === "testing"
+            ? "Testing…"
+            : "Save & test"}
         </Button>
-        {status === "ok" && <p className="text-green-600 text-sm">Key saved and verified ✓</p>}
-        {status === "error" && <p className="text-red-600 text-sm">{err}</p>}
+        {status === "ok" && (
+          <p className="text-green-600 text-sm">Settings saved and provider verified ✓</p>
+        )}
+        {status === "error" && err && (
+          <p className="text-red-600 text-sm">{err}</p>
+        )}
       </section>
     </div>
   );

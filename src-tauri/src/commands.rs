@@ -1,11 +1,11 @@
+use crate::ai::{self, AIProvider, ProviderConfig};
 use crate::ai::anthropic::AnthropicProvider;
-use crate::ai::AIProvider;
 use crate::domain::*;
 use crate::download_manager::DownloadManager;
 use crate::error::{AppError, AppResult};
 use crate::extractor::BRollExtractor;
 use crate::project_store::ProjectStore;
-use crate::settings_store::SettingsStore;
+use crate::settings_store::{AppSettings, SettingsStore};
 use crate::video_processor::VideoProcessor;
 use crate::youtube_search::YouTubeSearch;
 use std::path::PathBuf;
@@ -28,6 +28,18 @@ pub struct BinPaths {
 
 fn projects_root() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join("B-Roll Projects")
+}
+
+/// Build a [`ProviderConfig`] by combining persisted [`AppSettings`] with
+/// secrets pulled from the OS keyring.
+fn build_provider_config(settings: &AppSettings) -> AppResult<ProviderConfig> {
+    Ok(ProviderConfig {
+        anthropic_key: SettingsStore::get_anthropic_key()?,
+        openai_key: SettingsStore::get_openai_key()?,
+        ollama_base_url: settings.ollama_base_url.clone(),
+        claude_cli_path: settings.claude_cli_path.clone(),
+        codex_cli_path: settings.codex_cli_path.clone(),
+    })
 }
 
 #[tauri::command]
@@ -88,11 +100,20 @@ pub async fn project_list(state: State<'_, AppState>) -> AppResult<Vec<Project>>
     Ok(out)
 }
 
+// ---- Settings: API keys ---------------------------------------------------
+
 #[tauri::command]
 pub async fn settings_set_anthropic_key(key: String) -> AppResult<()> {
     SettingsStore::set_anthropic_key(&key)
 }
 
+#[tauri::command]
+pub async fn settings_set_openai_key(key: String) -> AppResult<()> {
+    SettingsStore::set_openai_key(&key)
+}
+
+/// Retained for backwards compatibility with the original frontend; thin
+/// wrapper around [`settings_test_provider`] for the Anthropic provider.
 #[tauri::command]
 pub async fn settings_test_anthropic() -> AppResult<bool> {
     let key = SettingsStore::get_anthropic_key()?
@@ -100,6 +121,29 @@ pub async fn settings_test_anthropic() -> AppResult<bool> {
     let provider = AnthropicProvider::new(key);
     let result = provider.complete("Reply with just OK", "ping").await?;
     Ok(result.to_lowercase().contains("ok"))
+}
+
+/// Build the named provider from current settings/keyring and ping it. Returns
+/// `true` when the provider's response contains the literal "ok".
+#[tauri::command]
+pub async fn settings_test_provider(provider_id: String) -> AppResult<bool> {
+    let settings = SettingsStore::load_settings()?;
+    let config = build_provider_config(&settings)?;
+    let provider = ai::create_provider(&provider_id, &config)?;
+    let result = provider.complete("Reply with just OK", "ping").await?;
+    Ok(result.to_lowercase().contains("ok"))
+}
+
+// ---- Settings: persistence -----------------------------------------------
+
+#[tauri::command]
+pub async fn settings_load() -> AppResult<AppSettings> {
+    SettingsStore::load_settings()
+}
+
+#[tauri::command]
+pub async fn settings_save(settings: AppSettings) -> AppResult<()> {
+    SettingsStore::save_settings(&settings)
 }
 
 #[tauri::command]
@@ -115,11 +159,20 @@ pub async fn extraction_run(
     let voiceover_path = state.projects_root.join(&project.slug).join(&project.voiceover.path);
     let transcript = tokio::fs::read_to_string(&voiceover_path).await?;
 
-    let key = SettingsStore::get_anthropic_key()?
-        .ok_or_else(|| AppError::InvalidInput("anthropic api key not set".into()))?;
-    let provider: Arc<dyn AIProvider> = Arc::new(AnthropicProvider::new(key));
+    let app_settings = SettingsStore::load_settings()?;
+    let provider_config = build_provider_config(&app_settings)?;
+    let provider: Arc<dyn AIProvider> =
+        ai::create_provider(&app_settings.selected_provider, &provider_config)?;
+    let provider_label = provider.name();
     let extractor = BRollExtractor::new(provider);
-    app.emit("extraction.progress", serde_json::json!({"step":"calling_ai","message":"Calling Anthropic API"})).ok();
+    app.emit(
+        "extraction.progress",
+        serde_json::json!({
+            "step": "calling_ai",
+            "message": format!("Calling AI provider: {provider_label}")
+        }),
+    )
+    .ok();
     let points = extractor.extract(&transcript).await?;
 
     for p in &points {
@@ -226,6 +279,11 @@ use crate::toolchain_manager;
 #[tauri::command]
 pub async fn toolchain_status() -> AppResult<toolchain_manager::ToolchainStatus> {
     Ok(toolchain_manager::detect_toolchain().await)
+}
+
+#[tauri::command]
+pub async fn ai_cli_status() -> AppResult<toolchain_manager::AiCliStatus> {
+    Ok(toolchain_manager::detect_ai_clis().await)
 }
 
 pub fn build_state() -> AppState {

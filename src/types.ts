@@ -37,3 +37,30 @@ export interface DownloadProgressEvent {
   percent: number;
   eta_sec: number | null;
 }
+
+export type ProviderId =
+  | "anthropic_api"
+  | "openai_api"
+  | "ollama"
+  | "claude_cli"
+  | "codex_cli";
+
+export interface AppSettings {
+  selected_provider: ProviderId;
+  anthropic_model: string;
+  ollama_base_url: string | null;
+  claude_cli_path: string | null;
+  codex_cli_path: string | null;
+}
+
+export interface ToolStatus {
+  found: boolean;
+  path: string | null;
+  version: string | null;
+}
+
+export interface AiCliStatus {
+  claude: ToolStatus;
+  codex: ToolStatus;
+  ollama: ToolStatus;
+}

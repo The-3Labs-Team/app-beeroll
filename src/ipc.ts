@@ -1,6 +1,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { BRollPoint, DownloadProgressEvent, Project, VideoCandidate } from "./types";
+import type {
+  AiCliStatus,
+  AppSettings,
+  BRollPoint,
+  DownloadProgressEvent,
+  Project,
+  VideoCandidate,
+} from "./types";
 
 export const ipc = {
   projectCreate: (name: string, text_voiceover: string) =>
@@ -9,7 +16,15 @@ export const ipc = {
   projectList: () => invoke<Project[]>("project_list"),
   settingsSetAnthropicKey: (key: string) =>
     invoke<void>("settings_set_anthropic_key", { key }),
+  settingsSetOpenaiKey: (key: string) =>
+    invoke<void>("settings_set_openai_key", { key }),
   settingsTestAnthropic: () => invoke<boolean>("settings_test_anthropic"),
+  settingsTestProvider: (providerId: string) =>
+    invoke<boolean>("settings_test_provider", { providerId }),
+  settingsLoad: () => invoke<AppSettings>("settings_load"),
+  settingsSave: (settings: AppSettings) =>
+    invoke<void>("settings_save", { settings }),
+  aiCliStatus: () => invoke<AiCliStatus>("ai_cli_status"),
   extractionRun: () => invoke<BRollPoint[]>("extraction_run"),
   searchRun: (keyword: string) => invoke<VideoCandidate[]>("search_run", { keyword }),
   pickVideo: (point_id: string, candidate: VideoCandidate) =>

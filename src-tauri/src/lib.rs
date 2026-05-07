@@ -32,13 +32,18 @@ pub fn run() {
             project_load,
             project_list,
             settings_set_anthropic_key,
+            settings_set_openai_key,
             settings_test_anthropic,
+            settings_test_provider,
+            settings_load,
+            settings_save,
             extraction_run,
             search_run,
             pick_video,
             skip_point,
             open_project_folder,
             toolchain_status,
+            ai_cli_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
