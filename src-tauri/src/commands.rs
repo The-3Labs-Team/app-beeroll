@@ -6,6 +6,7 @@ use crate::error::{AppError, AppResult};
 use crate::extractor::BRollExtractor;
 use crate::project_store::ProjectStore;
 use crate::settings_store::{AppSettings, SettingsStore};
+use crate::transcription::{self, TranscriptionConfig, TranscriptionResult};
 use crate::video_processor::VideoProcessor;
 use crate::youtube_search::YouTubeSearch;
 use std::path::PathBuf;
@@ -46,20 +47,53 @@ fn build_provider_config(settings: &AppSettings) -> AppResult<ProviderConfig> {
 pub async fn project_create(
     state: State<'_, AppState>,
     name: String,
-    text_voiceover: String,
+    text_voiceover: Option<String>,
+    audio_path: Option<String>,
 ) -> AppResult<Project> {
     if name.trim().is_empty() {
         return Err(AppError::InvalidInput("name is empty".into()));
     }
-    let voiceover = VoiceoverInput {
-        kind: VoiceoverKind::Text,
-        path: "voiceover.txt".into(),
-        duration_sec: None,
+
+    let voiceover = if let Some(audio) = audio_path.as_deref() {
+        let src = std::path::Path::new(audio);
+        if !src.exists() {
+            return Err(AppError::InvalidInput(format!(
+                "audio file does not exist: {audio}"
+            )));
+        }
+        let filename = src
+            .file_name()
+            .ok_or_else(|| AppError::InvalidInput("invalid audio path".into()))?
+            .to_string_lossy()
+            .into_owned();
+        VoiceoverInput {
+            kind: VoiceoverKind::Audio,
+            path: format!("audio/{filename}"),
+            duration_sec: None,
+        }
+    } else if text_voiceover.as_deref().map(|s| !s.trim().is_empty()).unwrap_or(false) {
+        VoiceoverInput {
+            kind: VoiceoverKind::Text,
+            path: "voiceover.txt".into(),
+            duration_sec: None,
+        }
+    } else {
+        return Err(AppError::InvalidInput(
+            "either text_voiceover or audio_path required".into(),
+        ));
     };
+
     tokio::fs::create_dir_all(&state.projects_root).await?;
-    let store = ProjectStore::create(&state.projects_root, &name, voiceover).await?;
+    let store = ProjectStore::create(&state.projects_root, &name, voiceover.clone()).await?;
     let project_dir = state.projects_root.join(slug::slugify(&name));
-    tokio::fs::write(project_dir.join("voiceover.txt"), &text_voiceover).await?;
+
+    if let Some(audio) = audio_path.as_deref() {
+        let dest = project_dir.join(&voiceover.path);
+        tokio::fs::copy(audio, dest).await?;
+    } else if let Some(text) = text_voiceover.as_deref() {
+        tokio::fs::write(project_dir.join("voiceover.txt"), text).await?;
+    }
+
     let project = store.project().await;
     *state.current_project.write().await = Some(Arc::new(store));
     Ok(project)
@@ -112,6 +146,11 @@ pub async fn settings_set_openai_key(key: String) -> AppResult<()> {
     SettingsStore::set_openai_key(&key)
 }
 
+#[tauri::command]
+pub async fn settings_set_groq_key(key: String) -> AppResult<()> {
+    SettingsStore::set_groq_key(&key)
+}
+
 /// Retained for backwards compatibility with the original frontend; thin
 /// wrapper around [`settings_test_provider`] for the Anthropic provider.
 #[tauri::command]
@@ -156,8 +195,33 @@ pub async fn extraction_run(
         cur.clone().ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
     };
     let project = store.project().await;
-    let voiceover_path = state.projects_root.join(&project.slug).join(&project.voiceover.path);
-    let transcript = tokio::fs::read_to_string(&voiceover_path).await?;
+
+    // For audio voiceovers we feed the model the previously-stored transcript
+    // segments concatenated; for text voiceovers we read voiceover.txt as
+    // before. Transcription is driven by `transcription_run` and must run
+    // first.
+    let transcript = match project.voiceover.kind {
+        VoiceoverKind::Audio => {
+            if project.transcript.is_empty() {
+                return Err(AppError::InvalidInput(
+                    "transcript missing — run transcription first".into(),
+                ));
+            }
+            project
+                .transcript
+                .iter()
+                .map(|s| s.text.as_str())
+                .collect::<Vec<_>>()
+                .join(" ")
+        }
+        VoiceoverKind::Text => {
+            let voiceover_path = state
+                .projects_root
+                .join(&project.slug)
+                .join(&project.voiceover.path);
+            tokio::fs::read_to_string(&voiceover_path).await?
+        }
+    };
 
     let app_settings = SettingsStore::load_settings()?;
     let provider_config = build_provider_config(&app_settings)?;
@@ -181,6 +245,80 @@ pub async fn extraction_run(
     let project_after = store.project().await;
     app.emit("project.updated", &project_after).ok();
     Ok(points)
+}
+
+#[tauri::command]
+pub async fn transcription_run(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    audio_path: String,
+) -> AppResult<TranscriptionResult> {
+    let store = {
+        let cur = state.current_project.read().await;
+        cur.clone()
+            .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
+    };
+    let project = store.project().await;
+    let project_dir = state.projects_root.join(&project.slug);
+
+    // Resolve relative paths against the project dir; absolute paths pass
+    // through. Frontend supplies the project-relative path (e.g.
+    // "audio/voiceover.mp3") it learned from project.voiceover.path.
+    let candidate = std::path::Path::new(&audio_path);
+    let resolved: PathBuf = if candidate.is_absolute() {
+        candidate.to_path_buf()
+    } else {
+        project_dir.join(candidate)
+    };
+    if !resolved.exists() {
+        return Err(AppError::InvalidInput(format!(
+            "audio file not found: {}",
+            resolved.display()
+        )));
+    }
+
+    let app_settings = SettingsStore::load_settings()?;
+    let config = build_transcription_config()?;
+    let provider = transcription::create_transcription_provider(
+        &app_settings.transcription_provider,
+        &config,
+    )?;
+    let provider_label = provider.name();
+
+    app.emit(
+        "transcription.progress",
+        serde_json::json!({
+            "step": "start",
+            "provider": provider_label,
+            "message": format!("Transcribing with {provider_label}…")
+        }),
+    )
+    .ok();
+
+    let result = provider.transcribe(&resolved).await?;
+
+    store.set_transcript(result.segments.clone()).await?;
+    let project_after = store.project().await;
+    app.emit("project.updated", &project_after).ok();
+    app.emit(
+        "transcription.progress",
+        serde_json::json!({
+            "step": "end",
+            "provider": provider_label,
+            "duration_sec": result.duration_sec,
+            "segments": result.segments.len(),
+        }),
+    )
+    .ok();
+
+    Ok(result)
+}
+
+fn build_transcription_config() -> AppResult<TranscriptionConfig> {
+    Ok(TranscriptionConfig {
+        groq_key: SettingsStore::get_groq_key()?,
+        openai_key: SettingsStore::get_openai_key()?,
+    })
 }
 
 #[tauri::command]
