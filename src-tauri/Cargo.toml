@@ -41,4 +41,5 @@ async-trait = "0.1"
 [dev-dependencies]
 tempfile = "3"
 mockito = "1"
+which = "6"
 

@@ -4,6 +4,7 @@ pub mod project_store;
 pub mod settings_store;
 pub mod ai;
 pub mod extractor;
+pub mod youtube_search;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
