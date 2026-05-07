@@ -6,6 +6,7 @@ pub mod ai;
 pub mod extractor;
 pub mod youtube_search;
 pub mod video_processor;
+pub mod download_manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
