@@ -5,9 +5,11 @@ use std::path::PathBuf;
 const KEYRING_SERVICE: &str = "video-broll";
 const KEYRING_USER_ANTHROPIC: &str = "anthropic_api_key";
 const KEYRING_USER_OPENAI: &str = "openai_api_key";
+const KEYRING_USER_GROQ: &str = "groq_api_key";
 
 const DEFAULT_PROVIDER: &str = "anthropic_api";
 const DEFAULT_ANTHROPIC_MODEL: &str = "claude-sonnet-4-6";
+const DEFAULT_TRANSCRIPTION_PROVIDER: &str = "groq_api";
 
 /// Persisted, non-secret application settings. Secrets live in the keyring.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -26,6 +28,14 @@ pub struct AppSettings {
     /// Optional override for the path to the `codex` CLI binary. When unset
     /// the binary is resolved via PATH.
     pub codex_cli_path: Option<String>,
+    /// Identifier of the audio transcription provider. One of `groq_api`,
+    /// `openai_api`. Defaults to `groq_api`.
+    #[serde(default = "default_transcription_provider")]
+    pub transcription_provider: String,
+}
+
+fn default_transcription_provider() -> String {
+    DEFAULT_TRANSCRIPTION_PROVIDER.into()
 }
 
 impl Default for AppSettings {
@@ -36,6 +46,7 @@ impl Default for AppSettings {
             ollama_base_url: None,
             claude_cli_path: None,
             codex_cli_path: None,
+            transcription_provider: DEFAULT_TRANSCRIPTION_PROVIDER.into(),
         }
     }
 }
@@ -87,6 +98,31 @@ impl SettingsStore {
 
     pub fn delete_openai_key() -> AppResult<()> {
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_OPENAI)?;
+        match entry.delete_credential() {
+            Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    // ---- Groq API key (transcription) ------------------------------------
+
+    pub fn set_groq_key(key: &str) -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_GROQ)?;
+        entry.set_password(key)?;
+        Ok(())
+    }
+
+    pub fn get_groq_key() -> AppResult<Option<String>> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_GROQ)?;
+        match entry.get_password() {
+            Ok(k) => Ok(Some(k)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn delete_groq_key() -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_GROQ)?;
         match entry.delete_credential() {
             Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.into()),
@@ -170,16 +206,33 @@ mod tests {
     }
 
     #[test]
+    fn set_get_delete_groq_key_roundtrip() {
+        let _ = SettingsStore::delete_groq_key();
+        assert_eq!(SettingsStore::get_groq_key().unwrap(), None);
+
+        SettingsStore::set_groq_key("gsk-test-12345").unwrap();
+        assert_eq!(
+            SettingsStore::get_groq_key().unwrap(),
+            Some("gsk-test-12345".to_string())
+        );
+
+        SettingsStore::delete_groq_key().unwrap();
+        assert_eq!(SettingsStore::get_groq_key().unwrap(), None);
+    }
+
+    #[test]
     fn save_and_load_settings_roundtrip() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("nested").join("settings.json");
         // Missing file returns default.
         let loaded = SettingsStore::load_settings_at(&path).unwrap();
         assert_eq!(loaded, AppSettings::default());
+        assert_eq!(loaded.transcription_provider, "groq_api");
 
         let mut to_save = AppSettings::default();
         to_save.selected_provider = "openai_api".into();
         to_save.ollama_base_url = Some("http://otherhost:11434".into());
+        to_save.transcription_provider = "openai_api".into();
         SettingsStore::save_settings_at(&path, &to_save).unwrap();
 
         let reloaded = SettingsStore::load_settings_at(&path).unwrap();
@@ -188,5 +241,24 @@ mod tests {
             reloaded.ollama_base_url.as_deref(),
             Some("http://otherhost:11434")
         );
+        assert_eq!(reloaded.transcription_provider, "openai_api");
+    }
+
+    #[test]
+    fn legacy_settings_without_transcription_provider_default_to_groq() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        // Write a legacy settings file lacking the new transcription_provider
+        // key — load_settings_at must default to "groq_api".
+        let legacy = r#"{
+            "selected_provider": "anthropic_api",
+            "anthropic_model": "claude-sonnet-4-6",
+            "ollama_base_url": null,
+            "claude_cli_path": null,
+            "codex_cli_path": null
+        }"#;
+        std::fs::write(&path, legacy).unwrap();
+        let loaded = SettingsStore::load_settings_at(&path).unwrap();
+        assert_eq!(loaded.transcription_provider, "groq_api");
     }
 }

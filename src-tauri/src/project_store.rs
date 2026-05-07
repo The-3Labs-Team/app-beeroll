@@ -69,6 +69,14 @@ impl ProjectStore {
         self.save().await
     }
 
+    pub async fn set_transcript(&self, segments: Vec<TranscriptSegment>) -> AppResult<()> {
+        {
+            let mut project = self.project.write().await;
+            project.transcript = segments;
+        }
+        self.save().await
+    }
+
     pub async fn update_broll_point<F>(&self, id: &str, updater: F) -> AppResult<()>
     where
         F: FnOnce(&mut BRollPoint),
@@ -124,6 +132,25 @@ mod tests {
         }
         let store = ProjectStore::load(&tmp.path().join("restore-me")).await.unwrap();
         assert_eq!(store.project().await.name, "Restore Me");
+    }
+
+    #[tokio::test]
+    async fn set_transcript_persists() {
+        let tmp = TempDir::new().unwrap();
+        let store = ProjectStore::create(tmp.path(), "TS Test", dummy_voiceover())
+            .await
+            .unwrap();
+        let segments = vec![
+            TranscriptSegment { start: 0.0, end: 1.5, text: "hello".into() },
+            TranscriptSegment { start: 1.5, end: 3.0, text: "world".into() },
+        ];
+        store.set_transcript(segments).await.unwrap();
+
+        let reloaded = ProjectStore::load(&tmp.path().join("ts-test")).await.unwrap();
+        let project = reloaded.project().await;
+        assert_eq!(project.transcript.len(), 2);
+        assert_eq!(project.transcript[0].text, "hello");
+        assert_eq!(project.transcript[1].end, 3.0);
     }
 
     #[tokio::test]
