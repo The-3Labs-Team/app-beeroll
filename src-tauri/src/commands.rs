@@ -221,6 +221,13 @@ pub async fn open_project_folder(state: State<'_, AppState>) -> AppResult<()> {
     Ok(())
 }
 
+use crate::toolchain_manager;
+
+#[tauri::command]
+pub async fn toolchain_status() -> AppResult<toolchain_manager::ToolchainStatus> {
+    Ok(toolchain_manager::detect_toolchain().await)
+}
+
 pub fn build_state() -> AppState {
     AppState {
         current_project: RwLock::new(None),

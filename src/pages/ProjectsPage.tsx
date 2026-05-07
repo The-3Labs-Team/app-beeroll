@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { invoke } from "@tauri-apps/api/core";
 import { ipc } from "../ipc";
 import { useStore } from "../store";
 import { Button } from "@/components/ui/button";
 import type { Project } from "../types";
+
+interface ToolStatus { found: boolean; path: string | null; version: string | null; }
+interface ToolchainStatus { ytdlp: ToolStatus; ffmpeg: ToolStatus; }
 
 export function ProjectsPage() {
   const nav = useNavigate();
   const setProject = useStore((s) => s.setProject);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tc, setTc] = useState<ToolchainStatus | null>(null);
 
   useEffect(() => {
     ipc.projectList().then((p) => { setProjects(p); setLoading(false); });
+    invoke<ToolchainStatus>("toolchain_status").then(setTc);
   }, []);
 
   const open = async (slug: string) => {
@@ -23,6 +29,12 @@ export function ProjectsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
+      {tc && (!tc.ytdlp.found || !tc.ffmpeg.found) && (
+        <div className="bg-red-100 text-red-900 p-4 rounded mb-4">
+          Missing tools: {!tc.ytdlp.found && <code>yt-dlp</code>} {!tc.ffmpeg.found && <code> ffmpeg</code>}.
+          Install with <code>brew install yt-dlp ffmpeg</code> on macOS.
+        </div>
+      )}
       <header className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold">B-Roll Projects</h1>
         <div className="flex gap-2">
