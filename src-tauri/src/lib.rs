@@ -3,11 +3,13 @@ pub mod domain;
 pub mod project_store;
 pub mod settings_store;
 pub mod ai;
+pub mod transcription;
 pub mod extractor;
 pub mod youtube_search;
 pub mod video_processor;
 pub mod download_manager;
 pub mod toolchain_manager;
+pub mod export;
 pub mod commands;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -32,13 +34,23 @@ pub fn run() {
             project_load,
             project_list,
             settings_set_anthropic_key,
+            settings_set_openai_key,
+            settings_set_groq_key,
             settings_test_anthropic,
+            settings_test_provider,
+            settings_load,
+            settings_save,
             extraction_run,
+            transcription_run,
             search_run,
             pick_video,
             skip_point,
             open_project_folder,
             toolchain_status,
+            ai_cli_status,
+            first_run_status,
+            export_edl,
+            export_fcpxml,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -104,6 +104,12 @@ video-broll/
 
 **Fuori (futuri plan):** input audio + whisper, multi-provider AI, export EDL/FCPXML, build cross-platform firmato.
 
+## CI / Releases
+
+- **Test** — su ogni PR e push a `master`, GitHub Actions esegue la matrice `ubuntu-latest`/`macos-latest`/`windows-latest`: `cargo test`, `tsc --noEmit`, `vitest run`, `vite build`. Vedi `.github/workflows/test.yml`.
+- **Release** — push di un tag `v*.*.*` (es. `git tag v0.1.0 && git push --tags`) lancia `.github/workflows/release.yml`, che produce installer nativi (`.dmg` universal macOS, `.AppImage`/`.deb` Linux, `.msi`/`.exe` Windows) tramite `tauri-apps/tauri-action` e li carica come release draft su GitHub.
+- **Code signing** — i 6 secret Apple per signing/notarization e la coppia di chiavi Tauri updater sono opzionali; senza, le build escono unsigned. Setup completo in [`.github/SIGNING.md`](.github/SIGNING.md).
+
 ## Licenze
 
 Inter Regular (font bundled per overlay): SIL Open Font License 1.1.

@@ -13,10 +13,25 @@ pub struct ToolStatus {
     pub version: Option<String>,
 }
 
+#[derive(Debug, Serialize, Clone)]
+pub struct AiCliStatus {
+    pub claude: ToolStatus,
+    pub codex: ToolStatus,
+    pub ollama: ToolStatus,
+}
+
 pub async fn detect_toolchain() -> ToolchainStatus {
     ToolchainStatus {
         ytdlp: detect_one("yt-dlp", &["--version"]).await,
         ffmpeg: detect_one("ffmpeg", &["-version"]).await,
+    }
+}
+
+pub async fn detect_ai_clis() -> AiCliStatus {
+    AiCliStatus {
+        claude: detect_one("claude", &["--version"]).await,
+        codex: detect_one("codex", &["--version"]).await,
+        ollama: detect_one("ollama", &["--version"]).await,
     }
 }
 
