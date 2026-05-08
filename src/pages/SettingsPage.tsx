@@ -270,7 +270,7 @@ export function SettingsPage() {
           Indietro
         </BeeButton>
 
-        <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none mt-[18px] mb-1">
+        <h1 className="text-[28px] font-bold tracking-[-0.8px] leading-none mt-[18px] mb-1">
           <BeeHL>Impostazioni</BeeHL>
         </h1>
 

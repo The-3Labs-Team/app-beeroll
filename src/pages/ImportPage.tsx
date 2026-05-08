@@ -89,7 +89,7 @@ export function ImportPage() {
           Indietro
         </BeeButton>
 
-        <h1 className="text-[50px] font-bold tracking-[-1.4px] leading-none mt-[18px] mb-1">
+        <h1 className="text-[28px] font-bold tracking-[-0.8px] leading-none mt-[18px] mb-1">
           <BeeHL>Nuovo progetto</BeeHL>
         </h1>
         <BeeMonoLabel as="div" className="mt-[14px] mb-7 text-[12px]">

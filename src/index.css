@@ -122,17 +122,14 @@
 .bee-hl {
   background: var(--bee-y);
   color: var(--bee-y-ink);
-  padding: 0 12px 2px;
-  box-shadow: 4px 4px 0 var(--bee-bk);
+  padding: 0 8px 1px;
   display: inline-block;
-  transform: translateY(-2px) rotate(-1deg);
 }
 
 .bee-hl-sm {
   background: var(--bee-y);
   color: var(--bee-y-ink);
-  padding: 2px 10px 4px;
-  box-shadow: 3px 3px 0 var(--bee-bk);
+  padding: 1px 6px 2px;
   display: inline-block;
 }
 

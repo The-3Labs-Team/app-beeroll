@@ -102,7 +102,7 @@ export function ReviewPage() {
           Indietro
         </BeeButton>
 
-        <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none mt-[18px] mb-1 break-words">
+        <h1 className="text-[28px] font-bold tracking-[-0.8px] leading-none mt-[18px] mb-1 break-words">
           <BeeHL>{project.name}</BeeHL>
         </h1>
 

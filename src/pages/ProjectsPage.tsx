@@ -79,7 +79,7 @@ export function ProjectsPage() {
         {/* Header */}
         <div className="px-8 pt-7 pb-5 border-b-bee border-bee-ink flex items-end justify-between gap-6">
           <div>
-            <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none m-0">
+            <h1 className="text-[28px] font-bold tracking-[-0.8px] leading-none m-0">
               <BeeHL>Progetti</BeeHL>
             </h1>
             <BeeMonoLabel as="div" className="mt-2.5 text-[12px]">
