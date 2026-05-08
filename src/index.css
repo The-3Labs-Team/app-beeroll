@@ -72,8 +72,9 @@
   body {
     margin: 0;
     padding: 0;
-    background: var(--bee-bg);
-    min-height: 100vh;
+    background: var(--bee-w);
+    height: 100vh;
+    overflow: hidden;
   }
 
   body {
@@ -83,7 +84,7 @@
   }
 
   #root {
-    min-height: 100vh;
+    height: 100vh;
   }
 }
 

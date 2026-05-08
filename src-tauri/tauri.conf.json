@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Video B-Roll",
+  "productName": "BeeRoll",
   "version": "0.1.0",
   "identifier": "com.videobroll.app",
   "build": {
@@ -12,9 +12,11 @@
   "app": {
     "windows": [
       {
-        "title": "Video B-Roll",
-        "width": 800,
-        "height": 600
+        "title": "BeeRoll",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 1000,
+        "minHeight": 660
       }
     ],
     "security": {
