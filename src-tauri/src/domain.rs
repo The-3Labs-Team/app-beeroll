@@ -8,6 +8,11 @@ pub enum BRollStatus {
     Searching,
     Picking,
     Downloading,
+    /// User asked to pause an in-flight yt-dlp run. The subprocess is killed
+    /// but the partial `.part` file is left in `cache/downloads/` so a Resume
+    /// (pickVideo with the same candidate) can let yt-dlp pick up where it
+    /// left off.
+    Paused,
     Done,
     Skipped,
     Error,

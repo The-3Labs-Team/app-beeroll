@@ -84,6 +84,7 @@ pub fn run() {
             transcription_run,
             search_run,
             pick_video,
+            cancel_download,
             skip_point,
             open_project_folder,
             toolchain_status,

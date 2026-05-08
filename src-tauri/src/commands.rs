@@ -10,15 +10,21 @@ use crate::transcription::{self, TranscriptionConfig, TranscriptionResult};
 use crate::video_processor::VideoProcessor;
 use crate::youtube_search::YouTubeSearch;
 use serde::Serialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex as TokioMutex, Notify, RwLock};
 
 pub struct AppState {
     pub current_project: RwLock<Option<Arc<ProjectStore>>>,
     pub projects_root: PathBuf,
     pub bin_paths: RwLock<BinPaths>,
+    /// Map of `point_id -> Notify` for in-flight downloads. Notifying the
+    /// handle aborts the corresponding [`DownloadManager::download_cancellable`]
+    /// task. Entries are inserted at the start of [`pick_video`] and removed
+    /// either by [`cancel_download`] or when `pick_video` finishes.
+    pub active_downloads: TokioMutex<HashMap<String, Arc<Notify>>>,
 }
 
 #[derive(Clone, Default)]
@@ -343,6 +349,7 @@ pub async fn pick_video(
     point_id: String,
     candidate: VideoCandidate,
 ) -> AppResult<String> {
+    tracing::info!(point_id = %point_id, video = %candidate.video_id, "pick_video: start");
     let store = {
         let cur = state.current_project.read().await;
         cur.clone().ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
@@ -362,21 +369,78 @@ pub async fn pick_video(
         let bp = state.bin_paths.read().await;
         (bp.ytdlp.clone(), bp.font.clone())
     };
+    tracing::info!(ytdlp = %ytdlp, font = ?font, "pick_video: bin paths");
     if ytdlp.is_empty() {
+        tracing::error!("pick_video: yt-dlp path empty, bootstrap not finished");
         return Err(AppError::InvalidInput(
             "yt-dlp is still being prepared — please wait a moment and retry".into(),
         ));
     }
+
+    // Register a cancel handle for this point. If a previous call left a stale
+    // entry, fire it first so any zombie subprocess goes away before we spawn
+    // a new one.
+    let cancel = Arc::new(Notify::new());
+    {
+        let mut active = state.active_downloads.lock().await;
+        if let Some(prev) = active.remove(&point_id) {
+            prev.notify_waiters();
+        }
+        active.insert(point_id.clone(), cancel.clone());
+    }
+
     let dl = DownloadManager::new(ytdlp);
     let pid = point_id.clone();
     let app_clone = app.clone();
-    let raw_path = dl.download(&candidate.url, &raw_dir, move |p| {
+    tracing::info!(url = %candidate.url, dest = ?raw_dir, "pick_video: starting yt-dlp download");
+    let download_result = dl.download_cancellable(&candidate.url, &raw_dir, move |p| {
         app_clone.emit("download.progress", serde_json::json!({
             "point_id": pid,
             "percent": p.percent,
             "eta_sec": p.eta_sec,
         })).ok();
-    }).await?;
+    }, cancel.clone()).await;
+
+    // Always clear our registration before deciding what to do with the
+    // result; cancel_download has already swapped status to Paused/Pending.
+    {
+        let mut active = state.active_downloads.lock().await;
+        // Only remove if the handle still matches ours: a fresh pick_video for
+        // the same point may have superseded us.
+        if let Some(existing) = active.get(&point_id) {
+            if Arc::ptr_eq(existing, &cancel) {
+                active.remove(&point_id);
+            }
+        }
+    }
+
+    let raw_path = match download_result {
+        Ok(p) => {
+            tracing::info!(path = ?p, "pick_video: yt-dlp finished");
+            p
+        }
+        Err(e) => {
+            // Distinguish a user-initiated cancel from an actual failure:
+            // cancel_download already wrote Paused/Pending, so we must NOT
+            // overwrite with Error here. Re-read the status to decide.
+            let post = store.project().await;
+            let was_cancelled = post.broll_points.iter()
+                .find(|b| b.id == point_id)
+                .map(|b| matches!(b.status, BRollStatus::Paused | BRollStatus::Pending))
+                .unwrap_or(false);
+            if was_cancelled {
+                tracing::info!("pick_video: cancelled by user, leaving status as set by cancel_download");
+                return Err(AppError::Subprocess("download cancelled".into()));
+            }
+            tracing::error!(error = %e, "pick_video: yt-dlp failed");
+            store.update_broll_point(&point_id, |bp| {
+                bp.status = BRollStatus::Error;
+            }).await.ok();
+            app.emit("project.updated", &store.project().await).ok();
+            app.emit("download.error", serde_json::json!({"point_id": point_id, "error": e.to_string()})).ok();
+            return Err(e);
+        }
+    };
 
     let idx = project.broll_points.iter().position(|b| b.id == point_id).unwrap_or(0);
     let safe_kw = slug::slugify(&candidate.title);
@@ -384,7 +448,17 @@ pub async fn pick_video(
     let final_path = clips_dir.join(&final_name);
 
     let vp = VideoProcessor::with_app(&app, font);
-    vp.apply_copyright_overlay(&raw_path, &final_path, &candidate.channel).await?;
+    tracing::info!(input = ?raw_path, output = ?final_path, "pick_video: starting ffmpeg overlay");
+    if let Err(e) = vp.apply_copyright_overlay(&raw_path, &final_path, &candidate.channel).await {
+        tracing::error!(error = %e, "pick_video: ffmpeg failed");
+        store.update_broll_point(&point_id, |bp| {
+            bp.status = BRollStatus::Error;
+        }).await.ok();
+        app.emit("project.updated", &store.project().await).ok();
+        app.emit("download.error", serde_json::json!({"point_id": point_id, "error": e.to_string()})).ok();
+        return Err(e);
+    }
+    tracing::info!("pick_video: ffmpeg overlay done");
 
     let final_rel = format!("clips/{final_name}");
     store.update_broll_point(&point_id, |bp| {
@@ -393,7 +467,75 @@ pub async fn pick_video(
     }).await?;
     app.emit("project.updated", &store.project().await).ok();
     app.emit("download.complete", serde_json::json!({"point_id": point_id, "output": final_rel})).ok();
+    tracing::info!(output = %final_rel, "pick_video: complete");
     Ok(final_rel)
+}
+
+/// Abort an in-flight `pick_video` for `point_id` and update the persisted
+/// status. With `delete_partial=true` the point reverts to Pending and the
+/// partial cache file (if we can identify it) is removed; with
+/// `delete_partial=false` (Pause) the status becomes Paused and the partial
+/// `.part` file is left behind so a follow-up pickVideo can resume.
+#[tauri::command]
+pub async fn cancel_download(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    point_id: String,
+    delete_partial: bool,
+) -> AppResult<()> {
+    tracing::info!(point_id = %point_id, delete_partial, "cancel_download");
+    let cancel = {
+        let mut active = state.active_downloads.lock().await;
+        active.remove(&point_id)
+    };
+    if let Some(c) = cancel {
+        c.notify_waiters();
+    }
+
+    let store = {
+        let cur = state.current_project.read().await;
+        cur.clone().ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
+    };
+
+    // Snapshot the current selected_video so we can wipe the partial cache
+    // file before clearing it from the point.
+    let project_before = store.project().await;
+    let selected = project_before
+        .broll_points
+        .iter()
+        .find(|b| b.id == point_id)
+        .and_then(|b| b.selected_video.clone());
+
+    if delete_partial {
+        store.update_broll_point(&point_id, |bp| {
+            bp.status = BRollStatus::Pending;
+            bp.selected_video = None;
+        }).await?;
+
+        // Best-effort: remove `<video_id>.part` and any fully-downloaded
+        // `<video_id>.<ext>` left in the cache. If it isn't there yet (we
+        // cancelled before the format was known), we just move on.
+        if let Some(v) = selected {
+            let raw_dir = state
+                .projects_root
+                .join(&project_before.slug)
+                .join("cache")
+                .join("downloads");
+            for ext in ["part", "mp4", "mkv", "webm", "mp4.part", "mkv.part", "webm.part"] {
+                let candidate_path = raw_dir.join(format!("{}.{}", v.video_id, ext));
+                if candidate_path.exists() {
+                    let _ = tokio::fs::remove_file(&candidate_path).await;
+                }
+            }
+        }
+    } else {
+        store.update_broll_point(&point_id, |bp| {
+            bp.status = BRollStatus::Paused;
+        }).await?;
+    }
+
+    app.emit("project.updated", &store.project().await).ok();
+    Ok(())
 }
 
 #[tauri::command]
@@ -518,5 +660,6 @@ pub fn build_state() -> AppState {
             ytdlp: String::new(),
             font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),
         }),
+        active_downloads: TokioMutex::new(HashMap::new()),
     }
 }
