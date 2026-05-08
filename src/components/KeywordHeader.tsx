@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 interface Props {
   keyword: string;
+  theme?: string;
   phrase?: string;
   current: number;
   total: number;
@@ -20,6 +21,7 @@ const padded = (n: number) => String(n).padStart(2, "0");
 
 export function KeywordHeader({
   keyword,
+  theme,
   phrase,
   current,
   total,
@@ -133,6 +135,14 @@ export function KeywordHeader({
           Salta →
         </button>
       </div>
+      {theme && (
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-1 h-3 bg-bee-yellow" />
+          <span className="font-mono text-[10px] font-bold tracking-[0.6px] uppercase text-bee-mute">
+            {theme}
+          </span>
+        </div>
+      )}
       {phrase && <div className="bee-quote line-clamp-2">{phrase}</div>}
     </header>
   );
