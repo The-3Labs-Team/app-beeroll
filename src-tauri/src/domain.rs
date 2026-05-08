@@ -70,6 +70,8 @@ pub struct VideoCandidate {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BRollPoint {
     pub id: String,
+    #[serde(default)]
+    pub theme: String,
     pub phrase: String,
     pub t_start: Option<f64>,
     pub t_end: Option<f64>,

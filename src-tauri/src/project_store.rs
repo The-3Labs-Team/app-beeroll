@@ -161,6 +161,7 @@ mod tests {
             .unwrap();
         let bp = BRollPoint {
             id: "bp_01".into(),
+            theme: "".into(),
             phrase: "trail running".into(),
             t_start: None,
             t_end: None,

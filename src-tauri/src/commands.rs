@@ -230,33 +230,6 @@ pub async fn extraction_run(
     };
     let project = store.project().await;
 
-    // For audio voiceovers we feed the model the previously-stored transcript
-    // segments concatenated; for text voiceovers we read voiceover.txt as
-    // before. Transcription is driven by `transcription_run` and must run
-    // first.
-    let transcript = match project.voiceover.kind {
-        VoiceoverKind::Audio => {
-            if project.transcript.is_empty() {
-                return Err(AppError::InvalidInput(
-                    "transcript missing — run transcription first".into(),
-                ));
-            }
-            project
-                .transcript
-                .iter()
-                .map(|s| s.text.as_str())
-                .collect::<Vec<_>>()
-                .join(" ")
-        }
-        VoiceoverKind::Text => {
-            let voiceover_path = state
-                .projects_root
-                .join(&project.slug)
-                .join(&project.voiceover.path);
-            tokio::fs::read_to_string(&voiceover_path).await?
-        }
-    };
-
     let app_settings = SettingsStore::load_settings()?;
     let provider_config = build_provider_config(&app_settings)?;
     let provider: Arc<dyn AIProvider> =
@@ -271,7 +244,34 @@ pub async fn extraction_run(
         }),
     )
     .ok();
-    let points = extractor.extract(&transcript).await?;
+
+    // Audio: pass timestamped transcript so the AI can enforce the 30s cap.
+    // Text: read voiceover.txt and pass as plain text.
+    let txt: String;
+    let points = match project.voiceover.kind {
+        VoiceoverKind::Audio => {
+            if project.transcript.is_empty() {
+                return Err(AppError::InvalidInput(
+                    "transcript missing — run transcription first".into(),
+                ));
+            }
+            extractor
+                .extract(crate::extractor::ExtractionInput::Timestamped(
+                    &project.transcript,
+                ))
+                .await?
+        }
+        VoiceoverKind::Text => {
+            let voiceover_path = state
+                .projects_root
+                .join(&project.slug)
+                .join(&project.voiceover.path);
+            txt = tokio::fs::read_to_string(&voiceover_path).await?;
+            extractor
+                .extract(crate::extractor::ExtractionInput::PlainText(&txt))
+                .await?
+        }
+    };
 
     for p in &points {
         store.add_broll_point(p.clone()).await?;

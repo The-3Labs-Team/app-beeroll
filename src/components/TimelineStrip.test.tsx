@@ -3,7 +3,7 @@ import { TimelineStrip } from "./TimelineStrip";
 import type { BRollPoint } from "../types";
 
 const point = (id: string, status: BRollPoint["status"]): BRollPoint => ({
-  id, phrase: `phrase ${id}`, t_start: null, t_end: null,
+  id, theme: "", phrase: `phrase ${id}`, t_start: null, t_end: null,
   keywords: [], active_keyword: "", status,
   selected_video: null, output_clip: null,
 });

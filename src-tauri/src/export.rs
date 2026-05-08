@@ -320,6 +320,7 @@ mod tests {
             broll_points: vec![
                 BRollPoint {
                     id: "bp_01".into(),
+                    theme: "".into(),
                     phrase: "first".into(),
                     t_start: Some(0.0),
                     t_end: Some(5.0),
@@ -340,6 +341,7 @@ mod tests {
                 },
                 BRollPoint {
                     id: "bp_02".into(),
+                    theme: "".into(),
                     phrase: "second".into(),
                     t_start: Some(5.0),
                     t_end: Some(8.0),
@@ -357,6 +359,7 @@ mod tests {
         let mut p = sample_project();
         p.broll_points.push(BRollPoint {
             id: "bp_03".into(),
+            theme: "".into(),
             phrase: "third".into(),
             t_start: Some(10.0),
             t_end: Some(13.0),

@@ -197,6 +197,7 @@ export function PickerPage() {
     >
       <KeywordHeader
         keyword={activeKeyword}
+        theme={point.theme}
         phrase={point.phrase}
         current={currentIndex}
         total={project.broll_points.length}
