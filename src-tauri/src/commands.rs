@@ -8,7 +8,7 @@ use crate::project_store::ProjectStore;
 use crate::settings_store::{self, AppSettings, SettingsStore};
 use crate::transcription::{self, TranscriptionConfig, TranscriptionResult};
 use crate::video_processor::VideoProcessor;
-use crate::search::{VideoSource, YouTubeSource};
+use crate::search::VideoSource;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -376,8 +376,16 @@ pub async fn search_run(
     keyword: String,
 ) -> AppResult<Vec<VideoCandidate>> {
     let ytdlp = await_ytdlp(&state).await?;
-    let search = YouTubeSource::new(ytdlp);
-    search.search(&keyword, 9).await
+    let mut sources: Vec<Arc<dyn crate::search::VideoSource>> =
+        vec![Arc::new(crate::search::YouTubeSource::new(ytdlp))];
+    if let Some(k) = SettingsStore::get_pixabay_key()? {
+        sources.push(Arc::new(crate::search::PixabaySource::new(k)));
+    }
+    if let Some(k) = SettingsStore::get_pexels_key()? {
+        sources.push(Arc::new(crate::search::PexelsSource::new(k)));
+    }
+    let agg = crate::search::MultiSourceSearch::new(sources);
+    Ok(agg.search(&keyword, 9).await)
 }
 
 #[tauri::command]
