@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { save } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
@@ -15,7 +15,11 @@ export function SummaryPage() {
   // state on the backend.
   const [exporting, setExporting] = useState<null | "edl" | "fcpxml">(null);
 
-  if (!project) return <div className="p-8">No project loaded.</div>;
+  useEffect(() => {
+    if (!project) nav("/projects", { replace: true });
+  }, [project, nav]);
+
+  if (!project) return null;
 
   const done = project.broll_points.filter((p) => p.status === "done");
   const skipped = project.broll_points.filter((p) => p.status === "skipped");

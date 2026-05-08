@@ -27,6 +27,15 @@ export function PickerPage() {
   const point = project?.broll_points[currentIndex];
   const activeKeyword = point ? (editedKeywords[point.id] ?? point.active_keyword) : "";
 
+  // Hard-redirect if user lands here without a project loaded (e.g. after a
+  // full page reload that cleared the Zustand store). Avoids the dead-end
+  // "No project loaded" screen.
+  useEffect(() => {
+    if (!project) {
+      nav("/projects", { replace: true });
+    }
+  }, [project, nav]);
+
   useEffect(() => {
     if (!project) return;
     if (project.broll_points.length === 0) return;

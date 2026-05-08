@@ -79,7 +79,11 @@ export function ReviewPage() {
     }
   };
 
-  if (!project) return <div className="p-8">No project loaded.</div>;
+  useEffect(() => {
+    if (!project) nav("/projects", { replace: true });
+  }, [project, nav]);
+
+  if (!project) return null;
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
