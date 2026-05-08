@@ -31,6 +31,12 @@ export const ipc = {
     invoke<void>("settings_set_openai_key", { key }),
   settingsSetGroqKey: (key: string) =>
     invoke<void>("settings_set_groq_key", { key }),
+  settingsSetPixabayKey: (key: string) =>
+    invoke<void>("settings_set_pixabay_key", { key }),
+  settingsTestPixabay: () => invoke<boolean>("settings_test_pixabay"),
+  settingsSetPexelsKey: (key: string) =>
+    invoke<void>("settings_set_pexels_key", { key }),
+  settingsTestPexels: () => invoke<boolean>("settings_test_pexels"),
   settingsTestAnthropic: () => invoke<boolean>("settings_test_anthropic"),
   settingsTestProvider: (providerId: string) =>
     invoke<boolean>("settings_test_provider", { providerId }),
