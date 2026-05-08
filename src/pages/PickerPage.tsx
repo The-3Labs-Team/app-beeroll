@@ -8,6 +8,7 @@ import { VideoGrid } from "../components/VideoGrid";
 import { PreviewPane } from "../components/PreviewPane";
 import { TimelineStrip } from "../components/TimelineStrip";
 import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
+import { PointStatusBar } from "../components/PointStatusBar";
 import type { VideoCandidate } from "../types";
 
 export function PickerPage() {
@@ -17,6 +18,7 @@ export function PickerPage() {
   const setCurrentIndex = useStore((s) => s.setCurrentIndex);
   const searchResults = useStore((s) => s.searchResults);
   const setSearchResults = useStore((s) => s.setSearchResults);
+  const downloads = useStore((s) => s.downloads);
 
   const [selected, setSelected] = useState<VideoCandidate | null>(null);
   const [searchErr, setSearchErr] = useState("");
@@ -144,6 +146,7 @@ export function PickerPage() {
         onSkip={skipCurrent}
         onChange={onChangeKeyword}
       />
+      <PointStatusBar point={point} download={downloads[point.id]} />
       <main className="flex flex-1 overflow-hidden">
         <div className="flex-1 overflow-y-auto">
           {searchErr ? <p className="p-8 text-red-600">{searchErr}</p> : null}
@@ -152,6 +155,9 @@ export function PickerPage() {
             <VideoGrid
               results={results}
               selectedId={selected?.video_id ?? null}
+              pickedVideoId={point.selected_video?.video_id ?? null}
+              pickedStatus={point.status}
+              pickedPointId={point.id}
               onSelect={setSelected}
             />
           )}
