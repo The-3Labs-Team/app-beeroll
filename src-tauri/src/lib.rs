@@ -5,7 +5,7 @@ pub mod settings_store;
 pub mod ai;
 pub mod transcription;
 pub mod extractor;
-pub mod youtube_search;
+pub mod search;
 pub mod video_processor;
 pub mod download_manager;
 pub mod toolchain_manager;

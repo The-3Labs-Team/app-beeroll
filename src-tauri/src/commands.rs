@@ -8,7 +8,7 @@ use crate::project_store::ProjectStore;
 use crate::settings_store::{self, AppSettings, SettingsStore};
 use crate::transcription::{self, TranscriptionConfig, TranscriptionResult};
 use crate::video_processor::VideoProcessor;
-use crate::youtube_search::YouTubeSearch;
+use crate::search::{VideoSource, YouTubeSource};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -348,7 +348,7 @@ pub async fn search_run(
     keyword: String,
 ) -> AppResult<Vec<VideoCandidate>> {
     let ytdlp = await_ytdlp(&state).await?;
-    let search = YouTubeSearch::new(ytdlp);
+    let search = YouTubeSource::new(ytdlp);
     search.search(&keyword, 9).await
 }
 
