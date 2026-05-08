@@ -6,6 +6,8 @@ const KEYRING_SERVICE: &str = "video-broll";
 const KEYRING_USER_ANTHROPIC: &str = "anthropic_api_key";
 const KEYRING_USER_OPENAI: &str = "openai_api_key";
 const KEYRING_USER_GROQ: &str = "groq_api_key";
+const KEYRING_USER_PIXABAY: &str = "pixabay_api_key";
+const KEYRING_USER_PEXELS: &str = "pexels_api_key";
 
 const DEFAULT_PROVIDER: &str = "anthropic_api";
 const DEFAULT_ANTHROPIC_MODEL: &str = "claude-sonnet-4-6";
@@ -129,6 +131,56 @@ impl SettingsStore {
         }
     }
 
+    // ---- Pixabay API key (video search) ----------------------------------
+
+    pub fn set_pixabay_key(key: &str) -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PIXABAY)?;
+        entry.set_password(key)?;
+        Ok(())
+    }
+
+    pub fn get_pixabay_key() -> AppResult<Option<String>> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PIXABAY)?;
+        match entry.get_password() {
+            Ok(k) => Ok(Some(k)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn delete_pixabay_key() -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PIXABAY)?;
+        match entry.delete_credential() {
+            Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    // ---- Pexels API key (video search) -----------------------------------
+
+    pub fn set_pexels_key(key: &str) -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PEXELS)?;
+        entry.set_password(key)?;
+        Ok(())
+    }
+
+    pub fn get_pexels_key() -> AppResult<Option<String>> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PEXELS)?;
+        match entry.get_password() {
+            Ok(k) => Ok(Some(k)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn delete_pexels_key() -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PEXELS)?;
+        match entry.delete_credential() {
+            Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     // ---- AppSettings on-disk persistence ---------------------------------
 
     /// Default location of the JSON settings file.
@@ -225,6 +277,32 @@ mod tests {
 
         SettingsStore::delete_groq_key().unwrap();
         assert_eq!(SettingsStore::get_groq_key().unwrap(), None);
+    }
+
+    #[test]
+    fn set_get_delete_pixabay_key_roundtrip() {
+        let _ = SettingsStore::delete_pixabay_key();
+        assert_eq!(SettingsStore::get_pixabay_key().unwrap(), None);
+        SettingsStore::set_pixabay_key("px-test-12345").unwrap();
+        assert_eq!(
+            SettingsStore::get_pixabay_key().unwrap(),
+            Some("px-test-12345".to_string())
+        );
+        SettingsStore::delete_pixabay_key().unwrap();
+        assert_eq!(SettingsStore::get_pixabay_key().unwrap(), None);
+    }
+
+    #[test]
+    fn set_get_delete_pexels_key_roundtrip() {
+        let _ = SettingsStore::delete_pexels_key();
+        assert_eq!(SettingsStore::get_pexels_key().unwrap(), None);
+        SettingsStore::set_pexels_key("pe-test-12345").unwrap();
+        assert_eq!(
+            SettingsStore::get_pexels_key().unwrap(),
+            Some("pe-test-12345".to_string())
+        );
+        SettingsStore::delete_pexels_key().unwrap();
+        assert_eq!(SettingsStore::get_pexels_key().unwrap(), None);
     }
 
     #[test]
