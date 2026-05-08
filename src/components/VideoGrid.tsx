@@ -2,6 +2,12 @@ import type { VideoCandidate, BRollStatus } from "../types";
 import { useStore } from "../store";
 import { formatDuration } from "../lib/utils";
 
+const SOURCE_BADGE: Record<string, { label: string; bg: string }> = {
+  youtube: { label: "YT", bg: "bg-[#FF0000] text-white" },
+  pixabay: { label: "PX", bg: "bg-[#2EC56C] text-white" },
+  pexels: { label: "PE", bg: "bg-bee-ink text-white" },
+};
+
 interface Props {
   results: VideoCandidate[];
   selectedId: string | null;
@@ -58,7 +64,8 @@ export function VideoGrid({
           }
         }
 
-        const thumbUrl = `https://i.ytimg.com/vi/${r.video_id}/mqdefault.jpg`;
+        const thumbUrl = r.thumb_url;
+        const badge = SOURCE_BADGE[r.source] ?? { label: "??", bg: "bg-bee-ink text-white" };
 
         return (
           <button
@@ -80,6 +87,14 @@ export function VideoGrid({
               <span className="absolute top-1.5 left-1.5 w-[26px] h-[26px] bg-bee-ink text-bee-yellow font-mono text-[13px] font-bold flex items-center justify-center border-2 border-bee-yellow">
                 {i + 1}
               </span>
+              {/* Source badge — hidden when "done" badge is shown to avoid stacking */}
+              {!(picked && pickedStatus === "done") && (
+                <span
+                  className={`absolute top-1.5 right-1.5 font-mono text-[10px] font-bold px-1.5 py-0.5 tracking-[0.3px] ${badge.bg}`}
+                >
+                  {badge.label}
+                </span>
+              )}
               <span className="absolute bottom-1.5 right-1.5 bg-bee-ink text-white font-mono text-[11px] font-bold px-1.5 py-0.5 tracking-[0.3px]">
                 {formatDuration(r.duration_sec)}
               </span>
@@ -113,7 +128,7 @@ export function VideoGrid({
                 {r.title}
               </p>
               <p className="font-mono text-[10.5px] font-bold tracking-[0.4px] uppercase text-bee-mute m-0 truncate">
-                {r.channel}
+                {badge.label} · {r.channel}
               </p>
             </div>
           </button>

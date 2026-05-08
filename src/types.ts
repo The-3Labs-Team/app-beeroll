@@ -1,13 +1,17 @@
 export type BRollStatus =
   | "pending" | "searching" | "picking" | "downloading" | "paused" | "done" | "skipped" | "error";
 
+export type VideoSourceId = "youtube" | "pixabay" | "pexels";
+
 export interface VideoCandidate {
+  source: VideoSourceId;
   video_id: string;
   title: string;
   channel: string;
   duration_sec: number;
   thumb_url: string;
   url: string;
+  stream_url: string | null;
 }
 
 export interface BRollPoint {

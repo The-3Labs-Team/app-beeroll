@@ -299,7 +299,8 @@ pub async fn export_fcpxml(project: &Project, output: &Path, project_dir: &Path)
 mod tests {
     use super::*;
     use crate::domain::{
-        BRollPoint, BRollStatus, Project, VideoCandidate, VoiceoverInput, VoiceoverKind,
+        BRollPoint, BRollStatus, Project, VideoCandidate, VideoSourceId, VoiceoverInput,
+        VoiceoverKind,
     };
     use chrono::Utc;
     use tempfile::TempDir;
@@ -326,12 +327,14 @@ mod tests {
                     active_keyword: "".into(),
                     status: BRollStatus::Done,
                     selected_video: Some(VideoCandidate {
+                        source: VideoSourceId::Youtube,
                         video_id: "abc".into(),
                         title: "First Video".into(),
                         channel: "Ch1".into(),
                         duration_sec: 125,
                         thumb_url: "".into(),
                         url: "".into(),
+                        stream_url: None,
                     }),
                     output_clip: Some("clips/0001_first.mp4".into()),
                 },
@@ -361,12 +364,14 @@ mod tests {
             active_keyword: "".into(),
             status: BRollStatus::Done,
             selected_video: Some(VideoCandidate {
+                source: VideoSourceId::Youtube,
                 video_id: "def".into(),
                 title: "Third Video".into(),
                 channel: "Ch2".into(),
                 duration_sec: 60,
                 thumb_url: "".into(),
                 url: "".into(),
+                stream_url: None,
             }),
             output_clip: Some("clips/0003_third.mp4".into()),
         });

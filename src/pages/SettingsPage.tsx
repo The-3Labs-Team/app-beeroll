@@ -53,6 +53,63 @@ export function SettingsPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [err, setErr] = useState<string>("");
 
+  const [pixabayKey, setPixabayKey] = useState("");
+  const [pixabayBusy, setPixabayBusy] = useState<null | "saving" | "testing">(null);
+  const [pixabayMsg, setPixabayMsg] = useState<{ kind: "idle" | "ok" | "err"; text: string }>({
+    kind: "idle",
+    text: "",
+  });
+  const [pexelsKey, setPexelsKey] = useState("");
+  const [pexelsBusy, setPexelsBusy] = useState<null | "saving" | "testing">(null);
+  const [pexelsMsg, setPexelsMsg] = useState<{ kind: "idle" | "ok" | "err"; text: string }>({
+    kind: "idle",
+    text: "",
+  });
+
+  const savePixabay = async () => {
+    if (!pixabayKey.trim()) {
+      setPixabayMsg({ kind: "err", text: "Inserisci la chiave" });
+      return;
+    }
+    setPixabayBusy("saving");
+    try {
+      await ipc.settingsSetPixabayKey(pixabayKey.trim());
+      setPixabayBusy("testing");
+      const ok = await ipc.settingsTestPixabay();
+      setPixabayBusy(null);
+      setPixabayMsg(
+        ok
+          ? { kind: "ok", text: "Chiave salvata e verificata" }
+          : { kind: "err", text: "Test fallito (nessun risultato)" },
+      );
+    } catch (e) {
+      setPixabayBusy(null);
+      setPixabayMsg({ kind: "err", text: String(e) });
+    }
+  };
+
+  const savePexels = async () => {
+    if (!pexelsKey.trim()) {
+      setPexelsMsg({ kind: "err", text: "Inserisci la chiave" });
+      return;
+    }
+    setPexelsBusy("saving");
+    try {
+      await ipc.settingsSetPexelsKey(pexelsKey.trim());
+      setPexelsBusy("testing");
+      const ok = await ipc.settingsTestPexels();
+      setPexelsBusy(null);
+      setPexelsMsg(
+        ok
+          ? { kind: "ok", text: "Chiave salvata e verificata" }
+          : { kind: "err", text: "Test fallito (nessun risultato)" },
+      );
+    } catch (e) {
+      setPexelsBusy(null);
+      setPexelsMsg({ kind: "err", text: String(e) });
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -329,6 +386,106 @@ export function SettingsPage() {
                 )}
               </label>
             ))}
+          </div>
+        </section>
+
+        {/* Sorgenti video */}
+        <section className="mt-12 flex flex-col gap-4">
+          <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
+            Sorgenti video
+          </h2>
+          <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
+            YouTube è sempre attivo. Aggiungi Pixabay/Pexels per stock footage.
+          </BeeMonoLabel>
+
+          {/* Pixabay */}
+          <div className="border-bee border-bee-ink p-4 bg-white">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-[15px]">Pixabay</h3>
+              <a
+                href="https://pixabay.com/api/docs/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline"
+              >
+                pixabay.com/api/
+              </a>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="API key Pixabay"
+                value={pixabayKey}
+                onChange={(e) => setPixabayKey(e.target.value)}
+                className={`flex-1 ${beeInputClass}`}
+              />
+              <BeeButton
+                variant="primary"
+                onClick={savePixabay}
+                disabled={pixabayBusy !== null}
+              >
+                {pixabayBusy === "saving"
+                  ? "Salvo…"
+                  : pixabayBusy === "testing"
+                  ? "Testo…"
+                  : "Salva e testa"}
+              </BeeButton>
+            </div>
+            {pixabayMsg.kind === "ok" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-green-700">
+                ✓ {pixabayMsg.text}
+              </p>
+            )}
+            {pixabayMsg.kind === "err" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-red-700">
+                ! {pixabayMsg.text}
+              </p>
+            )}
+          </div>
+
+          {/* Pexels */}
+          <div className="border-bee border-bee-ink p-4 bg-white">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-[15px]">Pexels</h3>
+              <a
+                href="https://www.pexels.com/api/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline"
+              >
+                pexels.com/api/
+              </a>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="API key Pexels"
+                value={pexelsKey}
+                onChange={(e) => setPexelsKey(e.target.value)}
+                className={`flex-1 ${beeInputClass}`}
+              />
+              <BeeButton
+                variant="primary"
+                onClick={savePexels}
+                disabled={pexelsBusy !== null}
+              >
+                {pexelsBusy === "saving"
+                  ? "Salvo…"
+                  : pexelsBusy === "testing"
+                  ? "Testo…"
+                  : "Salva e testa"}
+              </BeeButton>
+            </div>
+            {pexelsMsg.kind === "ok" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-green-700">
+                ✓ {pexelsMsg.text}
+              </p>
+            )}
+            {pexelsMsg.kind === "err" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-red-700">
+                ! {pexelsMsg.text}
+              </p>
+            )}
           </div>
         </section>
       </div>

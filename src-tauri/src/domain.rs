@@ -39,14 +39,32 @@ pub struct TranscriptSegment {
     pub text: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum VideoSourceId {
+    Youtube,
+    Pixabay,
+    Pexels,
+}
+
+impl Default for VideoSourceId {
+    fn default() -> Self {
+        Self::Youtube
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct VideoCandidate {
+    #[serde(default)]
+    pub source: VideoSourceId,
     pub video_id: String,
     pub title: String,
     pub channel: String,
     pub duration_sec: u32,
     pub thumb_url: String,
     pub url: String,
+    #[serde(default)]
+    pub stream_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
