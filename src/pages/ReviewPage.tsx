@@ -133,11 +133,16 @@ export function ReviewPage() {
                   key={p.id}
                   className="border-bee border-bee-ink p-4 bg-white"
                 >
-                  <div className="flex justify-between mb-2 gap-3">
+                  <div className="flex items-center mb-2 gap-2 flex-wrap">
                     <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase bg-bee-ink text-bee-yellow px-1.5 py-0.5 leading-none">
                       {padded(i + 1)}
                     </span>
-                    <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-bee-mute">
+                    {p.theme && (
+                      <span className="font-mono text-[10px] font-bold tracking-[0.4px] uppercase text-bee-mute">
+                        ▶ {p.theme}
+                      </span>
+                    )}
+                    <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-bee-mute ml-auto">
                       {p.status}
                     </span>
                   </div>
