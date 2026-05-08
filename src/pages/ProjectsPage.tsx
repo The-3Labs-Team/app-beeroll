@@ -29,10 +29,9 @@ export function ProjectsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      {tc && (!tc.ytdlp.found || !tc.ffmpeg.found) && (
+      {tc && !tc.ytdlp.found && (
         <div className="bg-red-100 text-red-900 p-4 rounded mb-4">
-          Missing tools: {!tc.ytdlp.found && <code>yt-dlp</code>} {!tc.ffmpeg.found && <code> ffmpeg</code>}.
-          Install with <code>brew install yt-dlp ffmpeg</code> on macOS.
+          Missing tool: <code>yt-dlp</code>. Install with <code>brew install yt-dlp</code> on macOS.
         </div>
       )}
       <header className="flex justify-between items-center mb-8">

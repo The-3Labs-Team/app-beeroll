@@ -24,7 +24,6 @@ pub struct AppState {
 #[derive(Clone)]
 pub struct BinPaths {
     pub ytdlp: String,
-    pub ffmpeg: String,
     pub font: PathBuf,
 }
 
@@ -369,7 +368,7 @@ pub async fn pick_video(
     let final_name = format!("{:04}_{safe_kw}.mp4", idx + 1);
     let final_path = clips_dir.join(&final_name);
 
-    let vp = VideoProcessor::new(state.bin_paths.ffmpeg.clone(), state.bin_paths.font.clone());
+    let vp = VideoProcessor::with_app(&app, state.bin_paths.font.clone());
     vp.apply_copyright_overlay(&raw_path, &final_path, &candidate.channel).await?;
 
     let final_rel = format!("clips/{final_name}");
@@ -489,7 +488,6 @@ pub fn build_state() -> AppState {
         projects_root: projects_root(),
         bin_paths: BinPaths {
             ytdlp: which::which("yt-dlp").map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "yt-dlp".into()),
-            ffmpeg: which::which("ffmpeg").map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "ffmpeg".into()),
             font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),
         },
     }

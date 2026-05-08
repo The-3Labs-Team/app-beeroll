@@ -26,6 +26,9 @@
     "targets": "all",
     "shortDescription": "AI-guided YouTube B-Roll downloader",
     "longDescription": "Desktop tool that uses AI to analyze a voiceover script, find B-Roll moments, search YouTube, and download chosen clips with copyright overlays — ready for editing.",
+    "externalBin": [
+      "binaries/ffmpeg"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

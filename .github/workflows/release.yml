@@ -48,6 +48,23 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Fetch ffmpeg sidecar (universal macOS)
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          bash scripts/fetch-binaries.sh aarch64-apple-darwin
+          bash scripts/fetch-binaries.sh x86_64-apple-darwin
+
+      - name: Fetch ffmpeg sidecar (Linux)
+        if: matrix.platform == 'ubuntu-latest'
+        shell: bash
+        run: bash scripts/fetch-binaries.sh x86_64-unknown-linux-gnu
+
+      - name: Fetch ffmpeg sidecar (Windows)
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: bash scripts/fetch-binaries.sh x86_64-pc-windows-msvc
+
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

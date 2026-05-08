@@ -23,7 +23,13 @@ pub struct AiCliStatus {
 pub async fn detect_toolchain() -> ToolchainStatus {
     ToolchainStatus {
         ytdlp: detect_one("yt-dlp", &["--version"]).await,
-        ffmpeg: detect_one("ffmpeg", &["-version"]).await,
+        // ffmpeg ships with the app as a Tauri sidecar (see
+        // `tauri.conf.json > bundle.externalBin`), so we do not probe PATH.
+        ffmpeg: ToolStatus {
+            found: true,
+            path: Some("(bundled)".into()),
+            version: Some("bundled".into()),
+        },
     }
 }
 
