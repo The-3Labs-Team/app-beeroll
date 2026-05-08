@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
+    "test:pw": "playwright test",
+    "test:pw:headed": "playwright test --headed",
     "e2e": "wdio run wdio.conf.ts"
   },
   "dependencies": {
