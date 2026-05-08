@@ -179,6 +179,7 @@ export function PickerPage() {
         onPrev={goPrev}
         onSkip={skipCurrent}
         onChange={onChangeKeyword}
+        onHome={() => nav("/projects")}
         disabled={locked}
       />
       <PointStatusBar point={point} download={downloads[point.id]} />

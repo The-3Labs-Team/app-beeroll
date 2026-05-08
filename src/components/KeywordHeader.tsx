@@ -10,6 +10,7 @@ interface Props {
   onPrev: () => void;
   onSkip: () => void;
   onChange: (next: string) => void;
+  onHome?: () => void;
   /**
    * Locks the editing affordances (✎ and Skip) when a download is in flight or
    * paused for the current point. Navigation back (←) intentionally stays
@@ -18,7 +19,7 @@ interface Props {
   disabled?: boolean;
 }
 
-export function KeywordHeader({ keyword, phrase, current, total, onPrev, onSkip, onChange, disabled }: Props) {
+export function KeywordHeader({ keyword, phrase, current, total, onPrev, onSkip, onChange, onHome, disabled }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(keyword);
 
@@ -32,7 +33,12 @@ export function KeywordHeader({ keyword, phrase, current, total, onPrev, onSkip,
   return (
     <header className="px-6 py-4 border-b border-border">
       <div className="flex items-center gap-4">
-        <Button variant="ghost" size="sm" onClick={onPrev}>←</Button>
+        {onHome && (
+          <Button variant="ghost" size="sm" onClick={onHome} title="Back to projects">
+            ⌂ Projects
+          </Button>
+        )}
+        <Button variant="ghost" size="sm" onClick={onPrev} title="Previous point">←</Button>
         <span className="text-xs text-muted-foreground">{current + 1}/{total}</span>
         {editing && !disabled ? (
           <Input
