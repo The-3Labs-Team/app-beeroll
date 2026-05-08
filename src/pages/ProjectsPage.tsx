@@ -1,24 +1,44 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { ipc } from "../ipc";
 import { useStore } from "../store";
 import { Button } from "@/components/ui/button";
 import type { Project } from "../types";
-
-interface ToolStatus { found: boolean; path: string | null; version: string | null; }
-interface ToolchainStatus { ytdlp: ToolStatus; ffmpeg: ToolStatus; }
 
 export function ProjectsPage() {
   const nav = useNavigate();
   const setProject = useStore((s) => s.setProject);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tc, setTc] = useState<ToolchainStatus | null>(null);
+  const [ytdlpReady, setYtdlpReady] = useState(false);
+  const [ytdlpError, setYtdlpError] = useState<string | null>(null);
 
   useEffect(() => {
-    ipc.projectList().then((p) => { setProjects(p); setLoading(false); });
-    invoke<ToolchainStatus>("toolchain_status").then(setTc);
+    ipc.projectList().then((p) => {
+      setProjects(p);
+      setLoading(false);
+    });
+
+    // The Rust setup hook ensures yt-dlp in the background. It may finish
+    // before this component mounts, so probe state first; otherwise listen
+    // for the event.
+    ipc.toolchainBootstrap().then((ready) => {
+      if (ready) setYtdlpReady(true);
+    });
+
+    const offReady = listen("toolchain.ytdlp.ready", () => {
+      setYtdlpReady(true);
+      setYtdlpError(null);
+    });
+    const offError = listen<string>("toolchain.ytdlp.error", (e) => {
+      setYtdlpError(typeof e.payload === "string" ? e.payload : String(e.payload));
+    });
+
+    return () => {
+      offReady.then((f) => f());
+      offError.then((f) => f());
+    };
   }, []);
 
   const open = async (slug: string) => {
@@ -29,10 +49,19 @@ export function ProjectsPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
-      {tc && (!tc.ytdlp.found || !tc.ffmpeg.found) && (
+      {!ytdlpReady && !ytdlpError && (
+        <div className="bg-blue-50 text-blue-900 p-3 rounded mb-4 text-sm">
+          Setting up video downloader (yt-dlp)…
+        </div>
+      )}
+      {ytdlpError && (
         <div className="bg-red-100 text-red-900 p-4 rounded mb-4">
-          Missing tools: {!tc.ytdlp.found && <code>yt-dlp</code>} {!tc.ffmpeg.found && <code> ffmpeg</code>}.
-          Install with <code>brew install yt-dlp ffmpeg</code> on macOS.
+          <p className="font-semibold mb-1">yt-dlp install failed</p>
+          <p className="text-sm">{ytdlpError}</p>
+          <p className="text-sm mt-2">
+            You can install it manually with{" "}
+            <code>brew install yt-dlp</code> on macOS, or restart the app to retry.
+          </p>
         </div>
       )}
       <header className="flex justify-between items-center mb-8">

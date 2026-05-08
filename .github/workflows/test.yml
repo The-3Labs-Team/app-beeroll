@@ -38,6 +38,10 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Fetch ffmpeg sidecar for host target
+        shell: bash
+        run: bash scripts/fetch-binaries.sh
+
       - name: Cargo test
         run: cargo test --manifest-path src-tauri/Cargo.toml
 

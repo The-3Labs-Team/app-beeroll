@@ -15,8 +15,12 @@ brew install rustup-init
 rustup-init -y
 brew install node@20
 cargo install tauri-cli --version "^2.0"
-brew install yt-dlp ffmpeg
 ```
+
+Né `yt-dlp` né `ffmpeg` vanno installati a mano:
+
+- `yt-dlp` viene **scaricato automaticamente al primo avvio** (~12 MB) in `~/Library/Application Support/com.videobroll.app/bin/yt-dlp`. L'update viene controllato al massimo una volta al giorno.
+- `ffmpeg` viene scaricato dallo script di setup (`scripts/fetch-binaries.sh`) e bundlato come [Tauri sidecar](https://v2.tauri.app/develop/sidecar/).
 
 Assicurati che `~/.cargo/bin` sia in `PATH` prima di `/opt/homebrew/bin` (il rustc Homebrew è troppo vecchio per le dipendenze Tauri 2). Il file `rust-toolchain.toml` nel repo seleziona `stable` via rustup.
 
@@ -26,7 +30,10 @@ Assicurati che `~/.cargo/bin` sia in `PATH` prima di `/opt/homebrew/bin` (il rus
 git clone <repo>
 cd video-broll
 npm install
+bash scripts/fetch-binaries.sh   # scarica ffmpeg sidecar per il target host
 ```
+
+Lo script va rieseguito **prima di `npm run tauri dev`/`build`** (il file vive in `src-tauri/binaries/` ed è gitignored). Su CI è invocato automaticamente dai workflow.
 
 ### Run dev
 
@@ -42,7 +49,7 @@ Si apre una finestra desktop. Apri `Settings`, incolla l'API key Anthropic (`sk-
 # Rust
 cd src-tauri
 PATH="$HOME/.cargo/bin:$PATH" cargo test                            # unit tests
-PATH="$HOME/.cargo/bin:$PATH" cargo test -- --include-ignored       # include integration (yt-dlp, ffmpeg)
+PATH="$HOME/.cargo/bin:$PATH" cargo test -- --include-ignored       # include integration (richiede sidecar ffmpeg già scaricato)
 
 # Frontend
 npx vitest run

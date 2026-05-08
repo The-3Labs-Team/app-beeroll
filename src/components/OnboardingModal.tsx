@@ -47,8 +47,9 @@ export function OnboardingModal({ onClose }: Props) {
 
   if (!status) return null;
 
-  const toolsMissing =
-    !status.toolchain.ytdlp.found || !status.toolchain.ffmpeg.found;
+  // yt-dlp and ffmpeg are bundled / auto-installed by the app, so the
+  // toolchain step is informational only.
+  const toolsMissing = false;
 
   const providerOptions: ProviderOption[] = [
     {
@@ -177,29 +178,28 @@ export function OnboardingModal({ onClose }: Props) {
             <DialogHeader>
               <DialogTitle>Step 1: Tools</DialogTitle>
               <DialogDescription>
-                We need yt-dlp and ffmpeg to download and process videos.
+                yt-dlp and ffmpeg are required to download and process videos.
+                We handle both for you.
               </DialogDescription>
             </DialogHeader>
             <ul className="space-y-2 my-4 text-sm">
               <li>
                 <span aria-hidden className="mr-2">
-                  {status.toolchain.ytdlp.found ? "[ok]" : "[missing]"}
+                  {status.toolchain.ytdlp.found ? "[ready]" : "[downloading]"}
                 </span>
-                yt-dlp
+                yt-dlp{" "}
+                <span className="text-muted-foreground">
+                  {status.toolchain.ytdlp.found
+                    ? "(installed)"
+                    : "(downloading on first launch — ~12 MB)"}
+                </span>
               </li>
               <li>
-                <span aria-hidden className="mr-2">
-                  {status.toolchain.ffmpeg.found ? "[ok]" : "[missing]"}
-                </span>
-                ffmpeg
+                <span aria-hidden className="mr-2">[ready]</span>
+                ffmpeg{" "}
+                <span className="text-muted-foreground">(bundled)</span>
               </li>
             </ul>
-            {toolsMissing && (
-              <p className="text-sm bg-yellow-50 text-yellow-900 p-3 rounded">
-                Open Terminal and run:{" "}
-                <code className="font-mono">brew install yt-dlp ffmpeg</code>
-              </p>
-            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setStep("welcome")}>
                 Back

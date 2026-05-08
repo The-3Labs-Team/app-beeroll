@@ -18,13 +18,12 @@ use tokio::sync::RwLock;
 pub struct AppState {
     pub current_project: RwLock<Option<Arc<ProjectStore>>>,
     pub projects_root: PathBuf,
-    pub bin_paths: BinPaths,
+    pub bin_paths: RwLock<BinPaths>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct BinPaths {
     pub ytdlp: String,
-    pub ffmpeg: String,
     pub font: PathBuf,
 }
 
@@ -327,7 +326,13 @@ pub async fn search_run(
     state: State<'_, AppState>,
     keyword: String,
 ) -> AppResult<Vec<VideoCandidate>> {
-    let search = YouTubeSearch::new(state.bin_paths.ytdlp.clone());
+    let ytdlp = state.bin_paths.read().await.ytdlp.clone();
+    if ytdlp.is_empty() {
+        return Err(AppError::InvalidInput(
+            "yt-dlp is still being prepared — please wait a moment and retry".into(),
+        ));
+    }
+    let search = YouTubeSearch::new(ytdlp);
     search.search(&keyword, 9).await
 }
 
@@ -353,7 +358,16 @@ pub async fn pick_video(
     }).await?;
     app.emit("project.updated", &store.project().await).ok();
 
-    let dl = DownloadManager::new(state.bin_paths.ytdlp.clone());
+    let (ytdlp, font) = {
+        let bp = state.bin_paths.read().await;
+        (bp.ytdlp.clone(), bp.font.clone())
+    };
+    if ytdlp.is_empty() {
+        return Err(AppError::InvalidInput(
+            "yt-dlp is still being prepared — please wait a moment and retry".into(),
+        ));
+    }
+    let dl = DownloadManager::new(ytdlp);
     let pid = point_id.clone();
     let app_clone = app.clone();
     let raw_path = dl.download(&candidate.url, &raw_dir, move |p| {
@@ -369,7 +383,7 @@ pub async fn pick_video(
     let final_name = format!("{:04}_{safe_kw}.mp4", idx + 1);
     let final_path = clips_dir.join(&final_name);
 
-    let vp = VideoProcessor::new(state.bin_paths.ffmpeg.clone(), state.bin_paths.font.clone());
+    let vp = VideoProcessor::with_app(&app, font);
     vp.apply_copyright_overlay(&raw_path, &final_path, &candidate.channel).await?;
 
     let final_rel = format!("clips/{final_name}");
@@ -416,13 +430,22 @@ pub async fn open_project_folder(state: State<'_, AppState>) -> AppResult<()> {
 use crate::toolchain_manager;
 
 #[tauri::command]
-pub async fn toolchain_status() -> AppResult<toolchain_manager::ToolchainStatus> {
-    Ok(toolchain_manager::detect_toolchain().await)
+pub async fn toolchain_status(app: AppHandle) -> AppResult<toolchain_manager::ToolchainStatus> {
+    Ok(toolchain_manager::detect_toolchain_with_app(&app).await)
 }
 
 #[tauri::command]
 pub async fn ai_cli_status() -> AppResult<toolchain_manager::AiCliStatus> {
     Ok(toolchain_manager::detect_ai_clis().await)
+}
+
+/// True once yt-dlp is installed and the path has been recorded in app state.
+/// Frontend can poll this in addition to listening for the `toolchain.ytdlp.ready`
+/// event, to handle the case where the event fires before the listener is wired up.
+#[tauri::command]
+pub async fn toolchain_bootstrap(state: State<'_, AppState>) -> AppResult<bool> {
+    let bin_paths = state.bin_paths.read().await;
+    Ok(!bin_paths.ytdlp.is_empty())
 }
 
 /// Aggregated state used by the frontend onboarding modal: whether settings
@@ -439,13 +462,13 @@ pub struct FirstRunStatus {
 }
 
 #[tauri::command]
-pub async fn first_run_status() -> AppResult<FirstRunStatus> {
+pub async fn first_run_status(app: AppHandle) -> AppResult<FirstRunStatus> {
     let settings_path = settings_store::SettingsStore::settings_path();
     let is_first_run = !settings_path.exists();
     let has_anthropic_key = settings_store::SettingsStore::get_anthropic_key()?.is_some();
     let has_openai_key = settings_store::SettingsStore::get_openai_key()?.is_some();
     let has_groq_key = settings_store::SettingsStore::get_groq_key()?.is_some();
-    let toolchain = toolchain_manager::detect_toolchain().await;
+    let toolchain = toolchain_manager::detect_toolchain_with_app(&app).await;
     let ai_clis = toolchain_manager::detect_ai_clis().await;
     Ok(FirstRunStatus {
         is_first_run,
@@ -484,13 +507,16 @@ pub async fn export_fcpxml(state: State<'_, AppState>, output_path: String) -> A
 }
 
 pub fn build_state() -> AppState {
+    // The yt-dlp path is populated asynchronously by the Tauri `setup` hook
+    // via [`toolchain_manager::ensure_ytdlp`] — see `lib.rs::run`. Until that
+    // completes the field stays empty and command handlers that need it
+    // surface a "still preparing" error to the caller.
     AppState {
         current_project: RwLock::new(None),
         projects_root: projects_root(),
-        bin_paths: BinPaths {
-            ytdlp: which::which("yt-dlp").map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "yt-dlp".into()),
-            ffmpeg: which::which("ffmpeg").map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|_| "ffmpeg".into()),
+        bin_paths: RwLock::new(BinPaths {
+            ytdlp: String::new(),
             font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),
-        },
+        }),
     }
 }
