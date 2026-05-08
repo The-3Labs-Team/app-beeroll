@@ -26,12 +26,14 @@ import { ipc, events } from "../ipc";
 import { PickerPage } from "./PickerPage";
 
 const sampleVideo = (id: string, title: string): VideoCandidate => ({
+  source: "youtube",
   video_id: id,
   title,
   channel: "Ch",
   duration_sec: 60,
   thumb_url: `https://i.ytimg.com/vi/${id}/mqdefault.jpg`,
   url: `https://www.youtube.com/watch?v=${id}`,
+  stream_url: null,
 });
 
 const sampleProject = (): Project => ({
