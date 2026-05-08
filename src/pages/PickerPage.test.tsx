@@ -46,6 +46,7 @@ const sampleProject = (): Project => ({
   broll_points: [
     {
       id: "bp_01",
+      theme: "",
       phrase: "first",
       t_start: null,
       t_end: null,
@@ -57,6 +58,7 @@ const sampleProject = (): Project => ({
     },
     {
       id: "bp_02",
+      theme: "",
       phrase: "second",
       t_start: null,
       t_end: null,

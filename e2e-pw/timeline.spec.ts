@@ -57,9 +57,9 @@ test("timeline shows SVG progress ring when point is downloading", async ({ page
         voiceover: { kind: "text", path: "voiceover.txt", duration_sec: null },
         transcript: [],
         broll_points: [
-          { id: "bp_01", phrase: "first phrase", t_start: null, t_end: null, keywords: ["k1"], active_keyword: "k1", status: "downloading", selected_video: { source: "youtube", video_id: "abc", title: "Vid A", channel: "Ch", duration_sec: 60, thumb_url: "", url: "https://www.youtube.com/watch?v=abc", stream_url: null }, output_clip: null },
-          { id: "bp_02", phrase: "second", t_start: null, t_end: null, keywords: ["k2"], active_keyword: "k2", status: "pending", selected_video: null, output_clip: null },
-          { id: "bp_03", phrase: "third", t_start: null, t_end: null, keywords: ["k3"], active_keyword: "k3", status: "done", selected_video: null, output_clip: "clips/0003.mp4" },
+          { id: "bp_01", theme: "trail running", phrase: "first phrase", t_start: null, t_end: null, keywords: ["k1"], active_keyword: "k1", status: "downloading", selected_video: { source: "youtube", video_id: "abc", title: "Vid A", channel: "Ch", duration_sec: 60, thumb_url: "", url: "https://www.youtube.com/watch?v=abc", stream_url: null }, output_clip: null },
+          { id: "bp_02", theme: "gear", phrase: "second", t_start: null, t_end: null, keywords: ["k2"], active_keyword: "k2", status: "pending", selected_video: null, output_clip: null },
+          { id: "bp_03", theme: "scenery", phrase: "third", t_start: null, t_end: null, keywords: ["k3"], active_keyword: "k3", status: "done", selected_video: null, output_clip: "clips/0003.mp4" },
         ],
       },
       currentIndex: 0,
@@ -102,4 +102,7 @@ test("timeline shows SVG progress ring when point is downloading", async ({ page
   await expect(page.locator('text=YT').first()).toBeVisible();
   await expect(page.locator('text=PX').first()).toBeVisible();
   await expect(page.locator('text=PE').first()).toBeVisible();
+
+  // Verify the theme label is rendered in the header
+  await expect(page.getByText("trail running", { exact: false }).first()).toBeVisible();
 });
