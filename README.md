@@ -51,9 +51,28 @@ cd src-tauri
 PATH="$HOME/.cargo/bin:$PATH" cargo test                            # unit tests
 PATH="$HOME/.cargo/bin:$PATH" cargo test -- --include-ignored       # include integration (richiede sidecar ffmpeg già scaricato)
 
-# Frontend
+# Frontend (vitest, cross-platform)
 npx vitest run
 ```
+
+#### Frontend integration tests (sostituto E2E su macOS)
+
+`src/pages/PickerPage.test.tsx` simula il flusso Picker (search → click thumbnail → "Download & use" → marker timeline avanza) mockando `../ipc`. Stesso scope del controllo E2E manuale, senza richiedere il binary Tauri o un WebDriver. Lo store Zustand globale viene resettato in ogni `beforeEach`.
+
+#### E2E reali — webdriverio + tauri-driver (Linux/Windows only)
+
+`tauri-driver` ufficialmente supporta solo Linux + Windows. Su macOS l'eseguibile esiste ma esce con `tauri-driver is not supported on this platform` perché Apple's WebDriver non espone l'API necessaria per la webview Tauri. Su macOS limitarsi a `npx vitest run`.
+
+Sui due OS supportati:
+
+```bash
+cargo install tauri-driver --locked            # una volta sola
+bash scripts/fetch-binaries.sh                 # ffmpeg sidecar per il target host
+npm run tauri build -- --debug                 # binary in src-tauri/target/debug/video-broll
+npm run e2e                                    # spawna tauri-driver + lancia wdio
+```
+
+Su Linux servono anche `webkit2gtk-driver` (Debian/Ubuntu) o equivalente; su Windows Edge WebDriver corrispondente al runtime WebView2.
 
 ### Build production (macOS)
 
