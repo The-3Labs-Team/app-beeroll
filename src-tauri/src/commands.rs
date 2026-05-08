@@ -157,6 +157,34 @@ pub async fn settings_set_groq_key(key: String) -> AppResult<()> {
     SettingsStore::set_groq_key(&key)
 }
 
+#[tauri::command]
+pub async fn settings_set_pixabay_key(key: String) -> AppResult<()> {
+    SettingsStore::set_pixabay_key(&key)
+}
+
+#[tauri::command]
+pub async fn settings_set_pexels_key(key: String) -> AppResult<()> {
+    SettingsStore::set_pexels_key(&key)
+}
+
+#[tauri::command]
+pub async fn settings_test_pixabay() -> AppResult<bool> {
+    let key = SettingsStore::get_pixabay_key()?
+        .ok_or_else(|| AppError::InvalidInput("no pixabay key set".into()))?;
+    let source = crate::search::PixabaySource::new(key);
+    let results = source.search("nature", 3).await?;
+    Ok(!results.is_empty())
+}
+
+#[tauri::command]
+pub async fn settings_test_pexels() -> AppResult<bool> {
+    let key = SettingsStore::get_pexels_key()?
+        .ok_or_else(|| AppError::InvalidInput("no pexels key set".into()))?;
+    let source = crate::search::PexelsSource::new(key);
+    let results = source.search("nature", 3).await?;
+    Ok(!results.is_empty())
+}
+
 /// Retained for backwards compatibility with the original frontend; thin
 /// wrapper around [`settings_test_provider`] for the Anthropic provider.
 #[tauri::command]
