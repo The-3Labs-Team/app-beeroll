@@ -327,17 +327,27 @@ fn build_transcription_config() -> AppResult<TranscriptionConfig> {
     })
 }
 
+/// Wait up to ~10s for the bootstrap setup hook to populate `bin_paths.ytdlp`.
+/// Returns the path once available, or an error if it never lands.
+async fn await_ytdlp(state: &AppState) -> AppResult<String> {
+    for _ in 0..50 {
+        let ytdlp = state.bin_paths.read().await.ytdlp.clone();
+        if !ytdlp.is_empty() {
+            return Ok(ytdlp);
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+    }
+    Err(AppError::Subprocess(
+        "yt-dlp setup did not complete in 10s — check network and restart the app".into(),
+    ))
+}
+
 #[tauri::command]
 pub async fn search_run(
     state: State<'_, AppState>,
     keyword: String,
 ) -> AppResult<Vec<VideoCandidate>> {
-    let ytdlp = state.bin_paths.read().await.ytdlp.clone();
-    if ytdlp.is_empty() {
-        return Err(AppError::InvalidInput(
-            "yt-dlp is still being prepared — please wait a moment and retry".into(),
-        ));
-    }
+    let ytdlp = await_ytdlp(&state).await?;
     let search = YouTubeSearch::new(ytdlp);
     search.search(&keyword, 9).await
 }
@@ -365,17 +375,9 @@ pub async fn pick_video(
     }).await?;
     app.emit("project.updated", &store.project().await).ok();
 
-    let (ytdlp, font) = {
-        let bp = state.bin_paths.read().await;
-        (bp.ytdlp.clone(), bp.font.clone())
-    };
+    let ytdlp = await_ytdlp(&state).await?;
+    let font = state.bin_paths.read().await.font.clone();
     tracing::info!(ytdlp = %ytdlp, font = ?font, "pick_video: bin paths");
-    if ytdlp.is_empty() {
-        tracing::error!("pick_video: yt-dlp path empty, bootstrap not finished");
-        return Err(AppError::InvalidInput(
-            "yt-dlp is still being prepared — please wait a moment and retry".into(),
-        ));
-    }
 
     // Register a cancel handle for this point. If a previous call left a stale
     // entry, fire it first so any zombie subprocess goes away before we spawn
