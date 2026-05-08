@@ -8,6 +8,7 @@ pub mod extractor;
 pub mod search;
 pub mod video_processor;
 pub mod download_manager;
+pub mod stock_downloader;
 pub mod toolchain_manager;
 pub mod export;
 pub mod commands;
