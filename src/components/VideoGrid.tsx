@@ -9,6 +9,7 @@ interface Props {
   pickedStatus?: BRollStatus | null;
   pickedPointId?: string | null;
   onSelect: (c: VideoCandidate) => void;
+  disabled?: boolean;
 }
 
 function formatDuration(sec: number): string {
@@ -17,7 +18,7 @@ function formatDuration(sec: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function VideoGrid({ results, selectedId, pickedVideoId, pickedStatus, pickedPointId, onSelect }: Props) {
+export function VideoGrid({ results, selectedId, pickedVideoId, pickedStatus, pickedPointId, onSelect, disabled }: Props) {
   const downloads = useStore((s) => s.downloads);
   const dl = pickedPointId ? downloads[pickedPointId] : undefined;
   const downloadPercent = pickedStatus === "downloading" ? Math.round(dl?.percent ?? 0) : null;
@@ -26,7 +27,7 @@ export function VideoGrid({ results, selectedId, pickedVideoId, pickedStatus, pi
     return <p className="text-muted-foreground p-8">No results. Try a different keyword.</p>;
   }
   return (
-    <div className="grid grid-cols-3 gap-3 p-4 overflow-y-auto">
+    <div className={`grid grid-cols-3 gap-3 p-4 overflow-y-auto ${disabled ? "pointer-events-none opacity-50" : ""}`}>
       {results.map((r, i) => {
         const selected = selectedId === r.video_id;
         const picked = pickedVideoId === r.video_id;
@@ -41,7 +42,8 @@ export function VideoGrid({ results, selectedId, pickedVideoId, pickedStatus, pi
         return (
           <button
             key={r.video_id}
-            onClick={() => onSelect(r)}
+            onClick={() => { if (!disabled) onSelect(r); }}
+            disabled={disabled}
             className={`text-left rounded-lg border-2 transition relative ${borderClass}`}
           >
             <div className="relative">

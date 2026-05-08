@@ -46,6 +46,8 @@ export const ipc = {
   searchRun: (keyword: string) => invoke<VideoCandidate[]>("search_run", { keyword }),
   pickVideo: (point_id: string, candidate: VideoCandidate) =>
     invoke<string>("pick_video", { pointId: point_id, candidate }),
+  cancelDownload: (point_id: string, delete_partial: boolean) =>
+    invoke<void>("cancel_download", { pointId: point_id, deletePartial: delete_partial }),
   skipPoint: (point_id: string) => invoke<void>("skip_point", { pointId: point_id }),
   openProjectFolder: () => invoke<void>("open_project_folder"),
   exportEdl: (outputPath: string) => invoke<void>("export_edl", { outputPath }),

@@ -115,10 +115,39 @@ export function PickerPage() {
     goNext();
   };
 
+  const onPause = () => {
+    if (!point) return;
+    ipc.cancelDownload(point.id, false).catch((e) =>
+      toast.error(`Pause failed: ${String(e)}`),
+    );
+  };
+  const onStop = () => {
+    if (!point) return;
+    ipc.cancelDownload(point.id, true).catch((e) =>
+      toast.error(`Stop failed: ${String(e)}`),
+    );
+  };
+  const onResume = () => {
+    if (!point || !point.selected_video) return;
+    toast.info(`Resuming: ${point.selected_video.title.slice(0, 50)}…`);
+    ipc.pickVideo(point.id, point.selected_video).catch((e) =>
+      toast.error(`Resume failed: ${String(e)}`),
+    );
+  };
+
+  // While the current point is downloading or paused, lock down navigation
+  // mutations so the user can't accidentally clobber state mid-flight.
+  const locked = point ? (point.status === "downloading" || point.status === "paused") : false;
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!project || !point) return;
       const results = searchResults[point.id] || [];
+      // Block keys that would mutate selection / status while busy. Arrow-left
+      // stays available so the user can navigate back without aborting.
+      if (locked && (e.key >= "1" && e.key <= "9")) return;
+      if (locked && e.key === "Enter") return;
+      if (locked && e.key === "ArrowRight") return;
       if (e.key >= "1" && e.key <= "9") {
         const i = parseInt(e.key) - 1;
         if (results[i]) setSelected(results[i]);
@@ -128,12 +157,16 @@ export function PickerPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [point?.id, selected, searchResults, currentIndex]);
+  }, [point?.id, selected, searchResults, currentIndex, locked]);
 
   if (!project) return <div className="p-8">No project loaded.</div>;
   if (!point) return <div className="p-8">No B-Roll point at index {currentIndex}.</div>;
 
   const results = searchResults[point.id] || [];
+  // While downloading or paused, the preview pane should reflect the picked
+  // video (so Pause/Stop/Resume buttons line up with what's actually in
+  // flight), not whatever was last clicked in the grid.
+  const previewCandidate = locked ? point.selected_video : selected;
 
   return (
     <div className="flex flex-col h-screen">
@@ -146,6 +179,7 @@ export function PickerPage() {
         onPrev={goPrev}
         onSkip={skipCurrent}
         onChange={onChangeKeyword}
+        disabled={locked}
       />
       <PointStatusBar point={point} download={downloads[point.id]} />
       <main className="flex flex-1 overflow-hidden">
@@ -160,11 +194,19 @@ export function PickerPage() {
               pickedStatus={point.status}
               pickedPointId={point.id}
               onSelect={setSelected}
+              disabled={locked}
             />
           )}
         </div>
         <aside className="w-[420px] border-l border-border">
-          <PreviewPane candidate={selected} onCommit={commitSelected} />
+          <PreviewPane
+            candidate={previewCandidate}
+            onCommit={commitSelected}
+            onPause={onPause}
+            onStop={onStop}
+            onResume={onResume}
+            pickedPointStatus={point.status}
+          />
         </aside>
       </main>
       <TimelineStrip

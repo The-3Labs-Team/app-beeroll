@@ -1,13 +1,24 @@
 import { useEffect, useRef, useState } from "react";
-import type { VideoCandidate } from "../types";
+import type { BRollStatus, VideoCandidate } from "../types";
 import { Button } from "@/components/ui/button";
 
 interface Props {
   candidate: VideoCandidate | null;
   onCommit: () => void;
+  onPause?: () => void;
+  onStop?: () => void;
+  onResume?: () => void;
+  pickedPointStatus?: BRollStatus | null;
 }
 
-export function PreviewPane({ candidate, onCommit }: Props) {
+export function PreviewPane({
+  candidate,
+  onCommit,
+  onPause,
+  onStop,
+  onResume,
+  pickedPointStatus,
+}: Props) {
   const [muted, setMuted] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -25,6 +36,8 @@ export function PreviewPane({ candidate, onCommit }: Props) {
   }
 
   const src = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${muted ? 1 : 0}&modestbranding=1&rel=0`;
+  const isDownloading = pickedPointStatus === "downloading";
+  const isPaused = pickedPointStatus === "paused";
 
   return (
     <div className="flex flex-col h-full p-4 gap-3">
@@ -43,9 +56,29 @@ export function PreviewPane({ candidate, onCommit }: Props) {
         <p className="text-sm text-muted-foreground">by © {candidate.channel}</p>
       </div>
       <div className="flex gap-2 mt-auto">
-        <Button onClick={onCommit} className="flex-1">
-          Download & use ✓
-        </Button>
+        {isDownloading ? (
+          <>
+            <Button variant="secondary" onClick={onPause} className="flex-1">
+              Pause
+            </Button>
+            <Button variant="destructive" onClick={onStop} className="flex-1">
+              Stop
+            </Button>
+          </>
+        ) : isPaused ? (
+          <>
+            <Button onClick={onResume} className="flex-1">
+              Resume
+            </Button>
+            <Button variant="destructive" onClick={onStop} className="flex-1">
+              Stop
+            </Button>
+          </>
+        ) : (
+          <Button onClick={onCommit} className="flex-1">
+            Download & use ✓
+          </Button>
+        )}
         <Button variant="outline" onClick={() => setMuted(!muted)} title="Toggle audio (m)">
           {muted ? "🔇" : "🔊"}
         </Button>
