@@ -16,6 +16,7 @@ export interface VideoCandidate {
 
 export interface BRollPoint {
   id: string;
+  theme: string;
   phrase: string;
   t_start: number | null;
   t_end: number | null;
