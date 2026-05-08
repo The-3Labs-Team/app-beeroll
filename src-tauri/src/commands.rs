@@ -445,7 +445,10 @@ pub async fn pick_video(
         VideoSourceId::Youtube => {
             tracing::info!(url = %candidate.url, dest = ?raw_dir, "pick_video: yt-dlp download");
             let dl = DownloadManager::new(ytdlp.clone());
-            match dl.download(&candidate.url, &raw_dir, progress_cb).await {
+            match dl
+                .download_cancellable(&candidate.url, &raw_dir, progress_cb, cancel.clone())
+                .await
+            {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::error!(error = %e, "pick_video: yt-dlp failed");
@@ -466,6 +469,10 @@ pub async fn pick_video(
             }
         }
         VideoSourceId::Pixabay | VideoSourceId::Pexels => {
+            // NOTE: StockDownloader does not yet support cancellation. The Pause/Stop
+            // UI buttons currently no-op for stock candidates; cancel_download will
+            // remove the Notify entry but the in-flight HTTP stream runs to
+            // completion. Tracked as a known limitation pending T10+.
             let stream = candidate.stream_url.as_deref().ok_or_else(|| {
                 AppError::InvalidInput(format!(
                     "stock candidate {} has no stream_url",
@@ -496,6 +503,13 @@ pub async fn pick_video(
             }
         }
     };
+
+    // Download succeeded — drop the cancel handle so a subsequent cancel_download
+    // for this point becomes a no-op rather than racing the overlay step.
+    {
+        let mut active = state.active_downloads.lock().await;
+        active.remove(&point_id);
+    }
 
     let idx = project.broll_points.iter().position(|b| b.id == point_id).unwrap_or(0);
     let safe_kw = slug::slugify(&candidate.title);
