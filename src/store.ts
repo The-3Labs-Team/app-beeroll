@@ -24,3 +24,9 @@ export const useStore = create<State>((set) => ({
   setDownloadProgress: (e) =>
     set((s) => ({ downloads: { ...s.downloads, [e.point_id]: e } })),
 }));
+
+// Expose the store on window for E2E tests (Playwright). This is harmless in
+// production: the app runs in a Tauri webview where there's no untrusted JS.
+if (typeof window !== "undefined") {
+  (window as unknown as { __STORE_FOR_TEST__: typeof useStore }).__STORE_FOR_TEST__ = useStore;
+}
