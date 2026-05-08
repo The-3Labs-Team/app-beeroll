@@ -43,6 +43,25 @@ export function PointStatusBar({ point, download }: Props) {
     );
   }
 
+  if (point.status === "paused") {
+    const percent = Math.round(download?.percent ?? 0);
+    return (
+      <div className="bg-sky-50 border-b border-sky-200 px-6 py-3">
+        <div className="flex items-center gap-3">
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-white text-xs font-bold">⏸</span>
+          <span className="font-semibold text-sky-900">Paused</span>
+          <span className="flex-1 truncate text-sm text-sky-800">
+            {point.selected_video?.title ?? ""}
+          </span>
+          <span className="font-mono tabular-nums text-sm text-sky-900 whitespace-nowrap">
+            {percent > 0 ? `${percent}%` : ""}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-sky-700">Click "Resume" to continue or "Stop" to discard.</p>
+      </div>
+    );
+  }
+
   if (point.status === "done") {
     return (
       <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-3">

@@ -1,5 +1,5 @@
 export type BRollStatus =
-  | "pending" | "searching" | "picking" | "downloading" | "done" | "skipped" | "error";
+  | "pending" | "searching" | "picking" | "downloading" | "paused" | "done" | "skipped" | "error";
 
 export interface VideoCandidate {
   video_id: string;
