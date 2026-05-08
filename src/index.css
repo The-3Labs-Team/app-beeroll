@@ -122,15 +122,17 @@
 .bee-hl {
   background: var(--bee-y);
   color: var(--bee-y-ink);
-  padding: 0 8px 1px;
+  padding: 12px 14px;
   display: inline-block;
+  line-height: 1;
 }
 
 .bee-hl-sm {
   background: var(--bee-y);
   color: var(--bee-y-ink);
-  padding: 1px 6px 2px;
+  padding: 8px 10px;
   display: inline-block;
+  line-height: 1;
 }
 
 /* Italic phrase / quote with framing « » */
