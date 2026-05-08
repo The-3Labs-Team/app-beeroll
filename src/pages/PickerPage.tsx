@@ -7,6 +7,7 @@ import { KeywordHeader } from "../components/KeywordHeader";
 import { VideoGrid } from "../components/VideoGrid";
 import { PreviewPane } from "../components/PreviewPane";
 import { TimelineStrip } from "../components/TimelineStrip";
+import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
 import type { VideoCandidate } from "../types";
 
 export function PickerPage() {
@@ -104,6 +105,7 @@ export function PickerPage() {
   const commitSelected = () => {
     if (!point || !selected) return;
     // Fire-and-forget: download runs in background, advance UI immediately
+    toast.info(`Downloading: ${selected.title.slice(0, 50)}…`);
     ipc.pickVideo(point.id, selected).catch((e) => {
       console.error("pickVideo failed:", e);
       toast.error(`Download failed: ${String(e)}`);
@@ -133,6 +135,7 @@ export function PickerPage() {
 
   return (
     <div className="flex flex-col h-screen">
+      <ActiveDownloadsBanner points={project.broll_points} />
       <KeywordHeader
         keyword={activeKeyword}
         current={currentIndex}

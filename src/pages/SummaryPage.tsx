@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ipc } from "../ipc";
 import { useStore } from "../store";
 import { Button } from "@/components/ui/button";
+import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
 
 export function SummaryPage() {
   const nav = useNavigate();
@@ -46,6 +47,7 @@ export function SummaryPage() {
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
+      <ActiveDownloadsBanner points={project.broll_points} />
       <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
       <p className="text-muted-foreground mb-8">
         {done.length} clip generated · {skipped.length} skipped · {project.broll_points.length} total points
