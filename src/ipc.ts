@@ -39,6 +39,7 @@ export const ipc = {
     invoke<void>("settings_save", { settings }),
   aiCliStatus: () => invoke<AiCliStatus>("ai_cli_status"),
   firstRunStatus: () => invoke<FirstRunStatus>("first_run_status"),
+  toolchainBootstrap: () => invoke<boolean>("toolchain_bootstrap"),
   extractionRun: () => invoke<BRollPoint[]>("extraction_run"),
   transcriptionRun: (audioPath: string) =>
     invoke<TranscriptionResult>("transcription_run", { audioPath }),
