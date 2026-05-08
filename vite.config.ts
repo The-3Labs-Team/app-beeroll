@@ -44,6 +44,6 @@ export default defineConfig({
     setupFiles: ["./src/test-setup.ts"],
     // E2E specs use @wdio/globals which only works inside the wdio runner.
     // Exclude them so `vitest run` doesn't try to execute them.
-    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**", "e2e-pw/**"],
   },
 });
