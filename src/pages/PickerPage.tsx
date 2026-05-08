@@ -140,6 +140,7 @@ export function PickerPage() {
       <ActiveDownloadsBanner points={project.broll_points} />
       <KeywordHeader
         keyword={activeKeyword}
+        phrase={point.phrase}
         current={currentIndex}
         total={project.broll_points.length}
         onPrev={goPrev}
