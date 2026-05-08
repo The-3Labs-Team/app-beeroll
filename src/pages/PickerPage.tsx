@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { ipc, events } from "../ipc";
 import { useStore } from "../store";
 import { KeywordHeader } from "../components/KeywordHeader";
@@ -17,7 +18,6 @@ export function PickerPage() {
   const setSearchResults = useStore((s) => s.setSearchResults);
 
   const [selected, setSelected] = useState<VideoCandidate | null>(null);
-  const [busy, setBusy] = useState(false);
   const [searchErr, setSearchErr] = useState("");
   const [editedKeywords, setEditedKeywords] = useState<Record<string, string>>({});
 
@@ -42,12 +42,34 @@ export function PickerPage() {
     runSearch(activeKeyword, point.id);
   }, [point?.id, activeKeyword]);
 
+  // Prefetch search for the next 2 points so they're ready when user advances
   useEffect(() => {
-    const off = events.onDownloadComplete(() => {
-      goNext();
+    if (!project) return;
+    const PREFETCH_COUNT = 2;
+    for (let i = 1; i <= PREFETCH_COUNT; i++) {
+      const idx = currentIndex + i;
+      const nextPoint = project.broll_points[idx];
+      if (!nextPoint) break;
+      if (nextPoint.status === "done" || nextPoint.status === "skipped") continue;
+      if (searchResults[nextPoint.id]) continue; // already cached
+
+      const kw = editedKeywords[nextPoint.id] ?? nextPoint.active_keyword;
+      if (!kw) continue;
+
+      // fire-and-forget prefetch (non blocca UI)
+      ipc.searchRun(kw)
+        .then((results) => setSearchResults(nextPoint.id, results))
+        .catch((e) => console.warn("prefetch failed for point", nextPoint.id, e));
+    }
+  }, [currentIndex, project?.slug]);
+
+  useEffect(() => {
+    const offComplete = events.onDownloadComplete((e) => {
+      const filename = e.output.split("/").pop() || "clip";
+      toast.success(`Clip ready: ${filename}`);
     });
-    return () => { off.then((f) => f()); };
-  }, [currentIndex]);
+    return () => { offComplete.then((f) => f()); };
+  }, []);
 
   const runSearch = async (kw: string, pointId: string) => {
     setSearchErr("");
@@ -79,17 +101,14 @@ export function PickerPage() {
     goNext();
   };
 
-  const commitSelected = async () => {
+  const commitSelected = () => {
     if (!point || !selected) return;
-    setBusy(true);
-    try {
-      await ipc.pickVideo(point.id, selected);
-    } catch (e) {
-      console.error(e);
-      alert(String(e));
-    } finally {
-      setBusy(false);
-    }
+    // Fire-and-forget: download runs in background, advance UI immediately
+    ipc.pickVideo(point.id, selected).catch((e) => {
+      console.error("pickVideo failed:", e);
+      toast.error(`Download failed: ${String(e)}`);
+    });
+    goNext();
   };
 
   useEffect(() => {
@@ -135,7 +154,7 @@ export function PickerPage() {
           )}
         </div>
         <aside className="w-[420px] border-l border-border">
-          <PreviewPane candidate={selected} onCommit={commitSelected} busy={busy} />
+          <PreviewPane candidate={selected} onCommit={commitSelected} />
         </aside>
       </main>
       <TimelineStrip

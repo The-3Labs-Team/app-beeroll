@@ -5,10 +5,9 @@ import { Button } from "@/components/ui/button";
 interface Props {
   candidate: VideoCandidate | null;
   onCommit: () => void;
-  busy: boolean;
 }
 
-export function PreviewPane({ candidate, onCommit, busy }: Props) {
+export function PreviewPane({ candidate, onCommit }: Props) {
   const [muted, setMuted] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -44,8 +43,8 @@ export function PreviewPane({ candidate, onCommit, busy }: Props) {
         <p className="text-sm text-muted-foreground">by © {candidate.channel}</p>
       </div>
       <div className="flex gap-2 mt-auto">
-        <Button onClick={onCommit} disabled={busy} className="flex-1">
-          {busy ? "Downloading…" : "Download & use ✓"}
+        <Button onClick={onCommit} className="flex-1">
+          Download & use ✓
         </Button>
         <Button variant="outline" onClick={() => setMuted(!muted)} title="Toggle audio (m)">
           {muted ? "🔇" : "🔊"}

@@ -1,44 +1,39 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface Props {
   videoId: string;
-  durationSec: number;
+  durationSec?: number;
 }
 
-export function HoverStoryboard({ videoId, durationSec }: Props) {
+const FRAMES = ["mqdefault", "mq1", "mq2", "mq3"];
+
+export function HoverStoryboard({ videoId }: Props) {
   const [hovered, setHovered] = useState(false);
   const [frame, setFrame] = useState(0);
-  const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!hovered) return;
-    const id = setInterval(() => setFrame((f) => (f + 1) % 100), 80);
+    if (!hovered) {
+      setFrame(0);
+      return;
+    }
+    const id = setInterval(() => setFrame((f) => (f + 1) % FRAMES.length), 700);
     return () => clearInterval(id);
   }, [hovered]);
 
-  const url = `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
-  const sbUrl = durationSec > 30
-    ? `https://i.ytimg.com/sb/${videoId}/storyboard3_L1/M0.jpg`
-    : url;
-
-  const col = frame % 10;
-  const row = Math.floor(frame / 10);
+  const idleUrl = `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`;
+  const url = hovered ? `https://i.ytimg.com/vi/${videoId}/${FRAMES[frame]}.jpg` : idleUrl;
 
   return (
     <div
-      ref={ref}
       className="relative aspect-video bg-muted rounded-md overflow-hidden cursor-pointer"
       onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => { setHovered(false); setFrame(0); }}
-      style={
-        hovered
-          ? {
-              backgroundImage: `url(${sbUrl})`,
-              backgroundSize: "1000% 1000%",
-              backgroundPosition: `${col * 11.11}% ${row * 11.11}%`,
-            }
-          : { backgroundImage: `url(${url})`, backgroundSize: "cover", backgroundPosition: "center" }
-      }
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        backgroundImage: `url(${url})`,
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        transition: "background-image 0.1s linear",
+      }}
     />
   );
 }
