@@ -427,56 +427,73 @@ pub async fn pick_video(
         active.insert(point_id.clone(), cancel.clone());
     }
 
-    let dl = DownloadManager::new(ytdlp);
     let pid = point_id.clone();
     let app_clone = app.clone();
-    tracing::info!(url = %candidate.url, dest = ?raw_dir, "pick_video: starting yt-dlp download");
-    let download_result = dl.download_cancellable(&candidate.url, &raw_dir, move |p| {
-        app_clone.emit("download.progress", serde_json::json!({
-            "point_id": pid,
-            "percent": p.percent,
-            "eta_sec": p.eta_sec,
-        })).ok();
-    }, cancel.clone()).await;
-
-    // Always clear our registration before deciding what to do with the
-    // result; cancel_download has already swapped status to Paused/Pending.
-    {
-        let mut active = state.active_downloads.lock().await;
-        // Only remove if the handle still matches ours: a fresh pick_video for
-        // the same point may have superseded us.
-        if let Some(existing) = active.get(&point_id) {
-            if Arc::ptr_eq(existing, &cancel) {
-                active.remove(&point_id);
+    let progress_cb = move |p: crate::download_manager::DownloadProgress| {
+        app_clone
+            .emit(
+                "download.progress",
+                serde_json::json!({
+                    "point_id": pid,
+                    "percent": p.percent,
+                    "eta_sec": p.eta_sec,
+                }),
+            )
+            .ok();
+    };
+    let raw_path = match candidate.source {
+        VideoSourceId::Youtube => {
+            tracing::info!(url = %candidate.url, dest = ?raw_dir, "pick_video: yt-dlp download");
+            let dl = DownloadManager::new(ytdlp.clone());
+            match dl.download(&candidate.url, &raw_dir, progress_cb).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!(error = %e, "pick_video: yt-dlp failed");
+                    store
+                        .update_broll_point(&point_id, |bp| {
+                            bp.status = BRollStatus::Error;
+                        })
+                        .await
+                        .ok();
+                    app.emit("project.updated", &store.project().await).ok();
+                    app.emit(
+                        "download.error",
+                        serde_json::json!({"point_id": point_id, "error": e.to_string()}),
+                    )
+                    .ok();
+                    return Err(e);
+                }
             }
         }
-    }
-
-    let raw_path = match download_result {
-        Ok(p) => {
-            tracing::info!(path = ?p, "pick_video: yt-dlp finished");
-            p
-        }
-        Err(e) => {
-            // Distinguish a user-initiated cancel from an actual failure:
-            // cancel_download already wrote Paused/Pending, so we must NOT
-            // overwrite with Error here. Re-read the status to decide.
-            let post = store.project().await;
-            let was_cancelled = post.broll_points.iter()
-                .find(|b| b.id == point_id)
-                .map(|b| matches!(b.status, BRollStatus::Paused | BRollStatus::Pending))
-                .unwrap_or(false);
-            if was_cancelled {
-                tracing::info!("pick_video: cancelled by user, leaving status as set by cancel_download");
-                return Err(AppError::Subprocess("download cancelled".into()));
+        VideoSourceId::Pixabay | VideoSourceId::Pexels => {
+            let stream = candidate.stream_url.as_deref().ok_or_else(|| {
+                AppError::InvalidInput(format!(
+                    "stock candidate {} has no stream_url",
+                    candidate.video_id
+                ))
+            })?;
+            tracing::info!(url = %stream, dest = ?raw_dir, "pick_video: stock HTTP download");
+            let downloader = crate::stock_downloader::StockDownloader::new();
+            let filename = format!("{}.mp4", candidate.video_id);
+            match downloader.download(stream, &raw_dir, &filename, progress_cb).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!(error = %e, "pick_video: stock download failed");
+                    store
+                        .update_broll_point(&point_id, |bp| {
+                            bp.status = BRollStatus::Error;
+                        })
+                        .await
+                        .ok();
+                    app.emit("project.updated", &store.project().await).ok();
+                    app.emit(
+                        "download.error",
+                        serde_json::json!({"point_id": point_id, "error": e.to_string()}),
+                    )
+                    .ok();
+                    return Err(e);
+                }
             }
-            tracing::error!(error = %e, "pick_video: yt-dlp failed");
-            store.update_broll_point(&point_id, |bp| {
-                bp.status = BRollStatus::Error;
-            }).await.ok();
-            app.emit("project.updated", &store.project().await).ok();
-            app.emit("download.error", serde_json::json!({"point_id": point_id, "error": e.to_string()})).ok();
-            return Err(e);
         }
     };
 
@@ -486,8 +503,13 @@ pub async fn pick_video(
     let final_path = clips_dir.join(&final_name);
 
     let vp = VideoProcessor::with_app(&app, font);
+    let overlay_text = match candidate.source {
+        VideoSourceId::Youtube => candidate.channel.clone(),
+        VideoSourceId::Pixabay => format!("{} \u{00B7} Pixabay", candidate.channel),
+        VideoSourceId::Pexels => format!("{} \u{00B7} Pexels", candidate.channel),
+    };
     tracing::info!(input = ?raw_path, output = ?final_path, "pick_video: starting ffmpeg overlay");
-    if let Err(e) = vp.apply_copyright_overlay(&raw_path, &final_path, &candidate.channel).await {
+    if let Err(e) = vp.apply_copyright_overlay(&raw_path, &final_path, &overlay_text).await {
         tracing::error!(error = %e, "pick_video: ffmpeg failed");
         store.update_broll_point(&point_id, |bp| {
             bp.status = BRollStatus::Error;
