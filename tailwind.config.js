@@ -5,6 +5,15 @@ export default {
   theme: {
     extend: {
       colors: {
+        // BeeRoll brutalist tokens
+        bee: {
+          yellow: "#FFD60A",
+          ink: "#0A0A0A",
+          cream: "#EAE6DB",
+          soft: "#F4F1E8",
+          mute: "#8A8A8A",
+        },
+        // shadcn/ui hsl vars (kept for Dialog/Toaster compatibility)
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {
@@ -38,6 +47,24 @@ export default {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
+      },
+      fontFamily: {
+        sans: ["'Space Grotesk'", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["'JetBrains Mono'", "ui-monospace", "monospace"],
+      },
+      boxShadow: {
+        "bee-1": "3px 3px 0 #0A0A0A",
+        "bee-2": "4px 4px 0 #0A0A0A",
+        "bee-3": "5px 5px 0 #0A0A0A",
+        "bee-4": "6px 6px 0 #0A0A0A",
+        "bee-5": "8px 8px 0 #0A0A0A",
+        "bee-win": "10px 10px 0 #0A0A0A",
+        "bee-y": "5px 5px 0 #FFD60A",
+        "bee-y-cta": "4px 4px 0 #FFD60A",
+        "bee-y-strong": "5px 5px 0 #FFD60A",
+      },
+      borderWidth: {
+        bee: "2.5px",
       },
       borderRadius: {
         lg: "var(--radius)",

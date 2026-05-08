@@ -1,16 +1,9 @@
 import type { BRollPoint, DownloadProgressEvent } from "../types";
+import { formatEtaIt } from "../lib/utils";
 
 interface Props {
   point: BRollPoint;
   download: DownloadProgressEvent | undefined;
-}
-
-function formatEta(sec: number | null | undefined): string {
-  if (sec == null) return "";
-  if (sec < 60) return `${sec}s`;
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
-  return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
 
 export function PointStatusBar({ point, download }: Props) {
@@ -21,21 +14,22 @@ export function PointStatusBar({ point, download }: Props) {
   if (point.status === "downloading") {
     const percent = Math.round(download?.percent ?? 0);
     return (
-      <div className="bg-amber-50 border-b border-amber-200 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-3 w-3 rounded-full bg-amber-500 animate-pulse" />
-          <span className="font-semibold text-amber-900">Downloading this point…</span>
-          <span className="flex-1 truncate text-sm text-amber-800">
-            {point.selected_video?.title ?? ""}
-          </span>
-          <span className="font-mono tabular-nums text-sm text-amber-900 whitespace-nowrap">
-            {percent > 0 ? `${percent}%` : "starting…"}
-            {download?.eta_sec != null && percent > 0 ? ` · ETA ${formatEta(download.eta_sec)}` : ""}
-          </span>
+      <div className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee border-bee-ink bg-bee-yellow shadow-bee-3 px-4 py-3 flex items-center gap-3.5 flex-wrap animate-pulse">
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-bold">
+          ↓
         </div>
-        <div className="mt-2 h-1.5 bg-amber-200 rounded overflow-hidden">
+        <div className="text-[14px] font-bold tracking-[-0.2px]">
+          Download {percent > 0 ? `${percent}%` : "in avvio"}
+        </div>
+        <div className="flex-1 truncate text-[13px] font-medium min-w-[140px]">
+          {point.selected_video?.title ?? ""}
+        </div>
+        <div className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase whitespace-nowrap">
+          {percent > 0 && download?.eta_sec != null ? `ETA ${formatEtaIt(download.eta_sec)}` : ""}
+        </div>
+        <div className="flex-basis-full w-full mt-1 h-1.5 bg-white border border-bee-ink overflow-hidden">
           <div
-            className="h-full bg-amber-500 transition-[width] duration-300"
+            className="h-full bg-bee-ink transition-[width] duration-300"
             style={{ width: `${percent}%` }}
           />
         </div>
@@ -46,58 +40,89 @@ export function PointStatusBar({ point, download }: Props) {
   if (point.status === "paused") {
     const percent = Math.round(download?.percent ?? 0);
     return (
-      <div className="bg-sky-50 border-b border-sky-200 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-white text-xs font-bold">⏸</span>
-          <span className="font-semibold text-sky-900">Paused</span>
-          <span className="flex-1 truncate text-sm text-sky-800">
-            {point.selected_video?.title ?? ""}
-          </span>
-          <span className="font-mono tabular-nums text-sm text-sky-900 whitespace-nowrap">
-            {percent > 0 ? `${percent}%` : ""}
-          </span>
+      <div className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee border-bee-ink bg-white shadow-bee-2 px-4 py-3 flex items-center gap-3.5 flex-wrap">
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-bold">
+          ⏸
         </div>
-        <p className="mt-1 text-xs text-sky-700">Click "Resume" to continue or "Stop" to discard.</p>
+        <div className="text-[14px] font-bold tracking-[-0.2px]">In pausa</div>
+        <div className="flex-1 truncate text-[13px] font-medium min-w-[140px]">
+          {point.selected_video?.title ?? ""}
+        </div>
+        <div className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase whitespace-nowrap">
+          {percent > 0 ? `${percent}%` : ""}
+        </div>
+        <div className="flex-basis-full w-full font-mono text-[11px] font-bold tracking-[0.5px] uppercase mt-1">
+          ↳ Clicca "Riprendi" per continuare o "Stop" per annullare.
+        </div>
       </div>
     );
   }
 
   if (point.status === "done") {
+    const filename = point.output_clip?.split("/").pop() ?? point.output_clip ?? "";
     return (
-      <div className="bg-emerald-50 border-b border-emerald-200 px-6 py-3">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-xs font-bold">✓</span>
-          <span className="font-semibold text-emerald-900">Clip ready for this point</span>
-          <span className="flex-1 truncate text-sm text-emerald-800">
-            {point.selected_video?.title} · © {point.selected_video?.channel}
-          </span>
-          {point.output_clip && (
-            <code className="text-xs text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-              {point.output_clip}
-            </code>
-          )}
+      <div className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee border-bee-ink bg-bee-yellow shadow-bee-3 px-4 py-3 flex items-center gap-3.5 flex-wrap">
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center">
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M3 7.5l3 3 5-6" />
+          </svg>
         </div>
-        <p className="mt-1 text-xs text-emerald-700">Click another video below to replace.</p>
+        <div className="text-[14px] font-bold tracking-[-0.2px]">
+          Clip pronta per questo punto
+        </div>
+        <div className="text-[13px] font-medium truncate min-w-[140px]">
+          · {point.selected_video?.title}
+        </div>
+        {filename && (
+          <div className="font-mono text-[11px] font-bold bg-bee-ink text-bee-yellow px-2 py-1 tracking-[0.2px] truncate max-w-full">
+            {filename}
+          </div>
+        )}
+        <div className="basis-full font-mono text-[11px] font-bold tracking-[0.5px] uppercase mt-1">
+          ↳ Clicca un altro video qui sotto per sostituire.
+        </div>
       </div>
     );
   }
 
   if (point.status === "skipped") {
     return (
-      <div className="bg-zinc-100 border-b border-zinc-200 px-6 py-3 flex items-center gap-3">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-zinc-500 text-white text-xs font-bold">×</span>
-        <span className="font-semibold text-zinc-700">Skipped</span>
-        <span className="text-sm text-zinc-600">Pick a video below to use this point.</span>
+      <div className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee border-bee-ink bg-bee-soft px-4 py-3 flex items-center gap-3.5 flex-wrap">
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-bold">
+          ✕
+        </div>
+        <div className="text-[14px] font-bold tracking-[-0.2px]">Saltato</div>
+        <div className="text-[13px] font-medium">
+          Scegli un video qui sotto per usare questo punto.
+        </div>
       </div>
     );
   }
 
   if (point.status === "error") {
     return (
-      <div className="bg-red-50 border-b border-red-200 px-6 py-3 flex items-center gap-3">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold">!</span>
-        <span className="font-semibold text-red-900">Download failed</span>
-        <span className="flex-1 text-sm text-red-800">Try selecting another video.</span>
+      <div
+        className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee bg-white shadow-bee-2 px-4 py-3 flex items-center gap-3.5 flex-wrap"
+        style={{ borderColor: "#7f1d1d" }}
+      >
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-bold">
+          !
+        </div>
+        <div className="text-[14px] font-bold tracking-[-0.2px]">
+          Errore — download fallito
+        </div>
+        <div className="flex-1 text-[13px] font-medium">
+          Prova a selezionare un altro video.
+        </div>
       </div>
     );
   }

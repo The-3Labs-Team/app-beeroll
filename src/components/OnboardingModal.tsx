@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
 import { ipc } from "../ipc";
 import type { FirstRunStatus, ProviderId, TranscriptionProviderId } from "../types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { BeeButton } from "./bee/BeeButton";
+import { BeeHL } from "./bee/BeeHL";
+import { BeeMonoLabel } from "./bee/BeeMonoLabel";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
 } from "@/components/ui/dialog";
 
 type Step = "welcome" | "toolchain" | "provider" | "key" | "transcription";
@@ -26,6 +23,9 @@ interface ProviderOption {
 }
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-4-6";
+
+const inputClass =
+  "w-full h-[46px] border-bee border-bee-ink bg-white px-3.5 font-mono text-[13px] font-medium text-bee-ink outline-none transition-shadow duration-75 focus:shadow-[5px_5px_0_#FFD60A] placeholder:text-bee-mute placeholder:font-normal";
 
 export function OnboardingModal({ onClose }: Props) {
   const [status, setStatus] = useState<FirstRunStatus | null>(null);
@@ -47,43 +47,41 @@ export function OnboardingModal({ onClose }: Props) {
 
   if (!status) return null;
 
-  // yt-dlp and ffmpeg are bundled / auto-installed by the app, so the
-  // toolchain step is informational only.
   const toolsMissing = false;
 
   const providerOptions: ProviderOption[] = [
     {
       id: "anthropic_api",
       label: "Anthropic API",
-      desc: "Best quality. Pay-per-use (~$0.05/video).",
+      desc: "Qualità migliore. Pay-per-use (~$0.05/video).",
       available: true,
     },
     {
       id: "openai_api",
       label: "OpenAI API",
-      desc: "Good quality. Pay-per-use.",
+      desc: "Buona qualità. Pay-per-use.",
       available: true,
     },
     {
       id: "claude_cli",
       label: "Claude CLI",
       desc: status.ai_clis.claude.found
-        ? "Detected — uses your existing Claude Code subscription."
-        : "Not installed",
+        ? "Rilevato — usa il tuo abbonamento Claude Code."
+        : "Non installato",
       available: status.ai_clis.claude.found,
     },
     {
       id: "codex_cli",
       label: "Codex CLI",
-      desc: status.ai_clis.codex.found ? "Detected" : "Not installed",
+      desc: status.ai_clis.codex.found ? "Rilevato" : "Non installato",
       available: status.ai_clis.codex.found,
     },
     {
       id: "ollama",
-      label: "Ollama (local)",
+      label: "Ollama (locale)",
       desc: status.ai_clis.ollama.found
-        ? "Detected — runs locally, free, private."
-        : "Not installed",
+        ? "Rilevato — locale, gratuito, privato."
+        : "Non installato",
       available: status.ai_clis.ollama.found,
     },
   ];
@@ -92,12 +90,12 @@ export function OnboardingModal({ onClose }: Props) {
     {
       id: "groq_api",
       label: "Groq Whisper API",
-      desc: "Recommended — fast, ~$0.04/hour, generous free tier.",
+      desc: "Consigliato — veloce, ~$0.04/ora, free tier generoso.",
     },
     {
       id: "openai_api",
       label: "OpenAI Whisper API",
-      desc: "Reuses your OpenAI key.",
+      desc: "Riusa la tua key OpenAI.",
     },
   ];
 
@@ -119,11 +117,8 @@ export function OnboardingModal({ onClose }: Props) {
     setBusy(true);
     setErr("");
     try {
-      // Persist a minimal settings file so first-run detection won't trigger
-      // again on next launch.
       await persistSettings();
     } catch (e) {
-      // Ignore so the user is never trapped in the modal.
       console.warn("onboarding skip: settings_save failed", e);
     } finally {
       setBusy(false);
@@ -154,207 +149,217 @@ export function OnboardingModal({ onClose }: Props) {
 
   return (
     <Dialog open onOpenChange={() => undefined}>
-      <DialogContent className="max-w-lg">
-        {step === "welcome" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Welcome to Video B-Roll</DialogTitle>
-              <DialogDescription>
-                Let's get you set up in 2 minutes. We'll check your tools, pick
-                an AI provider, and you're done.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={skip} disabled={busy}>
-                Skip
-              </Button>
-              <Button onClick={() => setStep("toolchain")}>Get started</Button>
-            </DialogFooter>
-          </>
-        )}
+      <DialogContent className="max-w-[560px] border-bee border-bee-ink shadow-bee-2 bg-white p-0 rounded-md overflow-hidden">
+        <div className="px-6 pt-6 pb-5 flex flex-col gap-3">
+          {step === "welcome" && (
+            <>
+              <h2 className="text-[36px] font-bold tracking-[-1px] leading-none m-0">
+                <BeeHL>Benvenuto</BeeHL>
+              </h2>
+              <BeeMonoLabel as="p" className="text-[12px]">
+                Setup veloce in 2 minuti — strumenti, provider AI, fatto.
+              </BeeMonoLabel>
+              <div className="mt-4 flex justify-end gap-2">
+                <BeeButton variant="default" onClick={skip} disabled={busy}>
+                  Salta
+                </BeeButton>
+                <BeeButton variant="primary" onClick={() => setStep("toolchain")}>
+                  Iniziamo
+                </BeeButton>
+              </div>
+            </>
+          )}
 
-        {step === "toolchain" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Step 1: Tools</DialogTitle>
-              <DialogDescription>
-                yt-dlp and ffmpeg are required to download and process videos.
-                We handle both for you.
-              </DialogDescription>
-            </DialogHeader>
-            <ul className="space-y-2 my-4 text-sm">
-              <li>
-                <span aria-hidden className="mr-2">
-                  {status.toolchain.ytdlp.found ? "[ready]" : "[downloading]"}
-                </span>
-                yt-dlp{" "}
-                <span className="text-muted-foreground">
-                  {status.toolchain.ytdlp.found
-                    ? "(installed)"
-                    : "(downloading on first launch — ~12 MB)"}
-                </span>
-              </li>
-              <li>
-                <span aria-hidden className="mr-2">[ready]</span>
-                ffmpeg{" "}
-                <span className="text-muted-foreground">(bundled)</span>
-              </li>
-            </ul>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("welcome")}>
-                Back
-              </Button>
-              <Button onClick={() => setStep("provider")}>
-                {toolsMissing ? "Continue anyway" : "Next"}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+          {step === "toolchain" && (
+            <>
+              <h2 className="text-[28px] font-bold tracking-[-0.6px] leading-tight m-0">
+                Step 1 · <BeeHL size="sm">Strumenti</BeeHL>
+              </h2>
+              <BeeMonoLabel as="p" className="text-[12px] mt-2">
+                yt-dlp e ffmpeg sono richiesti — ce ne occupiamo noi.
+              </BeeMonoLabel>
+              <ul className="mt-3 flex flex-col gap-2 text-[13px] m-0 p-0 list-none">
+                <li className="flex items-center gap-3 border-2 border-bee-ink p-2.5 bg-white">
+                  <span className="font-mono text-[10px] font-bold uppercase bg-bee-ink text-bee-yellow px-1.5 py-0.5">
+                    {status.toolchain.ytdlp.found ? "PRONTO" : "DOWNLOAD"}
+                  </span>
+                  <span className="font-bold">yt-dlp</span>
+                  <BeeMonoLabel className="ml-auto normal-case tracking-normal">
+                    {status.toolchain.ytdlp.found ? "installato" : "primo avvio (~12 MB)"}
+                  </BeeMonoLabel>
+                </li>
+                <li className="flex items-center gap-3 border-2 border-bee-ink p-2.5 bg-white">
+                  <span className="font-mono text-[10px] font-bold uppercase bg-bee-ink text-bee-yellow px-1.5 py-0.5">
+                    PRONTO
+                  </span>
+                  <span className="font-bold">ffmpeg</span>
+                  <BeeMonoLabel className="ml-auto normal-case tracking-normal">bundled</BeeMonoLabel>
+                </li>
+              </ul>
+              <div className="mt-4 flex justify-end gap-2">
+                <BeeButton variant="default" onClick={() => setStep("welcome")}>
+                  Indietro
+                </BeeButton>
+                <BeeButton variant="primary" onClick={() => setStep("provider")}>
+                  {toolsMissing ? "Continua" : "Avanti"}
+                </BeeButton>
+              </div>
+            </>
+          )}
 
-        {step === "provider" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Step 2: AI Provider</DialogTitle>
-              <DialogDescription>
-                How would you like the AI to find B-Roll points?
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 my-4">
-              {providerOptions.map((opt) => (
-                <label
-                  key={opt.id}
-                  className={`flex items-start gap-3 p-3 border rounded cursor-pointer ${
-                    provider === opt.id
-                      ? "border-primary bg-muted"
-                      : "border-border"
-                  } ${!opt.available ? "opacity-50" : ""}`}
+          {step === "provider" && (
+            <>
+              <h2 className="text-[28px] font-bold tracking-[-0.6px] leading-tight m-0">
+                Step 2 · <BeeHL size="sm">Provider AI</BeeHL>
+              </h2>
+              <BeeMonoLabel as="p" className="text-[12px] mt-2">
+                Come vuoi che l'AI trovi i punti B-Roll?
+              </BeeMonoLabel>
+              <div className="flex flex-col gap-2 mt-3 max-h-[280px] overflow-y-auto bee-scroll pr-1">
+                {providerOptions.map((opt) => (
+                  <label
+                    key={opt.id}
+                    className={`flex items-start gap-3 p-3 border-2 border-bee-ink cursor-pointer transition-[transform,box-shadow] duration-75 ${
+                      provider === opt.id ? "bg-bee-yellow shadow-bee-1" : "bg-white"
+                    } ${!opt.available ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    <input
+                      type="radio"
+                      name="provider"
+                      value={opt.id}
+                      checked={provider === opt.id}
+                      onChange={() => setProvider(opt.id)}
+                      disabled={!opt.available}
+                      className="accent-bee-ink h-4 w-4 mt-0.5"
+                    />
+                    <div>
+                      <p className="font-bold text-[14px] m-0">{opt.label}</p>
+                      <BeeMonoLabel as="p" className="mt-1 normal-case tracking-normal text-[11px]">
+                        {opt.desc}
+                      </BeeMonoLabel>
+                    </div>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-4 flex justify-end gap-2">
+                <BeeButton variant="default" onClick={() => setStep("toolchain")}>
+                  Indietro
+                </BeeButton>
+                <BeeButton
+                  variant="primary"
+                  onClick={() =>
+                    setStep(requiresApiKey ? "key" : "transcription")
+                  }
                 >
-                  <input
-                    type="radio"
-                    name="provider"
-                    value={opt.id}
-                    checked={provider === opt.id}
-                    onChange={() => setProvider(opt.id)}
-                    disabled={!opt.available}
-                  />
-                  <div>
-                    <p className="font-medium text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("toolchain")}>
-                Back
-              </Button>
-              <Button
-                onClick={() =>
-                  setStep(requiresApiKey ? "key" : "transcription")
-                }
-              >
-                Next
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+                  Avanti
+                </BeeButton>
+              </div>
+            </>
+          )}
 
-        {step === "key" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Step 3: API Key</DialogTitle>
-              <DialogDescription>
+          {step === "key" && (
+            <>
+              <h2 className="text-[28px] font-bold tracking-[-0.6px] leading-tight m-0">
+                Step 3 · <BeeHL size="sm">API Key</BeeHL>
+              </h2>
+              <BeeMonoLabel as="p" className="text-[12px] mt-2 normal-case tracking-normal">
                 {provider === "anthropic_api"
-                  ? "Get one at console.anthropic.com"
-                  : "Get one at platform.openai.com/api-keys"}
-              </DialogDescription>
-            </DialogHeader>
-            <Input
-              type="password"
-              placeholder={
-                provider === "anthropic_api" ? "sk-ant-..." : "sk-..."
-              }
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              className="my-4"
-            />
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setStep("provider")}>
-                Back
-              </Button>
-              <Button
-                onClick={() => setStep("transcription")}
-                disabled={!apiKey}
-              >
-                Next
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-
-        {step === "transcription" && (
-          <>
-            <DialogHeader>
-              <DialogTitle>Step 4: Audio transcription (optional)</DialogTitle>
-              <DialogDescription>
-                If you'll upload audio voiceovers, we need a Whisper provider.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 my-4">
-              {transcriptionOptions.map((opt) => (
-                <label
-                  key={opt.id}
-                  className={`flex items-start gap-3 p-3 border rounded cursor-pointer ${
-                    transcriptionProvider === opt.id
-                      ? "border-primary bg-muted"
-                      : "border-border"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="trans"
-                    value={opt.id}
-                    checked={transcriptionProvider === opt.id}
-                    onChange={() => setTranscriptionProvider(opt.id)}
-                  />
-                  <div>
-                    <p className="font-medium text-sm">{opt.label}</p>
-                    <p className="text-xs text-muted-foreground">{opt.desc}</p>
-                  </div>
-                </label>
-              ))}
-              {transcriptionProvider === "groq_api" && (
-                <Input
-                  type="password"
-                  placeholder="gsk_... (get one at console.groq.com)"
-                  value={groqKey}
-                  onChange={(e) => setGroqKey(e.target.value)}
-                  className="mt-3"
-                />
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              You can skip this if you'll only use text transcripts.
-            </p>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() =>
-                  setStep(requiresApiKey ? "key" : "provider")
+                  ? "Ottienila su console.anthropic.com"
+                  : "Ottienila su platform.openai.com/api-keys"}
+              </BeeMonoLabel>
+              <input
+                type="password"
+                placeholder={
+                  provider === "anthropic_api" ? "sk-ant-..." : "sk-..."
                 }
-              >
-                Back
-              </Button>
-              <Button variant="ghost" onClick={skip} disabled={busy}>
-                Skip
-              </Button>
-              <Button onClick={finish} disabled={busy}>
-                {busy ? "Saving..." : "Finish"}
-              </Button>
-            </DialogFooter>
-          </>
-        )}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                className={`${inputClass} mt-3`}
+              />
+              <div className="mt-4 flex justify-end gap-2">
+                <BeeButton variant="default" onClick={() => setStep("provider")}>
+                  Indietro
+                </BeeButton>
+                <BeeButton
+                  variant="primary"
+                  onClick={() => setStep("transcription")}
+                  disabled={!apiKey}
+                >
+                  Avanti
+                </BeeButton>
+              </div>
+            </>
+          )}
+
+          {step === "transcription" && (
+            <>
+              <h2 className="text-[28px] font-bold tracking-[-0.6px] leading-tight m-0">
+                Step 4 · <BeeHL size="sm">Trascrizione</BeeHL>
+              </h2>
+              <BeeMonoLabel as="p" className="text-[12px] mt-2">
+                Per la voce in formato audio serve un provider Whisper.
+              </BeeMonoLabel>
+              <div className="flex flex-col gap-2 mt-3">
+                {transcriptionOptions.map((opt) => (
+                  <label
+                    key={opt.id}
+                    className={`flex items-start gap-3 p-3 border-2 border-bee-ink cursor-pointer ${
+                      transcriptionProvider === opt.id
+                        ? "bg-bee-yellow shadow-bee-1"
+                        : "bg-white"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="trans"
+                      value={opt.id}
+                      checked={transcriptionProvider === opt.id}
+                      onChange={() => setTranscriptionProvider(opt.id)}
+                      className="accent-bee-ink h-4 w-4 mt-0.5"
+                    />
+                    <div>
+                      <p className="font-bold text-[14px] m-0">{opt.label}</p>
+                      <BeeMonoLabel as="p" className="mt-1 normal-case tracking-normal text-[11px]">
+                        {opt.desc}
+                      </BeeMonoLabel>
+                    </div>
+                  </label>
+                ))}
+                {transcriptionProvider === "groq_api" && (
+                  <input
+                    type="password"
+                    placeholder="gsk_... (console.groq.com)"
+                    value={groqKey}
+                    onChange={(e) => setGroqKey(e.target.value)}
+                    className={`${inputClass} mt-1`}
+                  />
+                )}
+              </div>
+              <BeeMonoLabel as="p" className="text-[11px] mt-2 normal-case tracking-normal">
+                Puoi saltare se userai solo trascrizioni testuali.
+              </BeeMonoLabel>
+              {err && (
+                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.4px] text-red-700 mt-2">
+                  ! {err}
+                </p>
+              )}
+              <div className="mt-4 flex justify-end gap-2 flex-wrap">
+                <BeeButton
+                  variant="default"
+                  onClick={() => setStep(requiresApiKey ? "key" : "provider")}
+                >
+                  Indietro
+                </BeeButton>
+                <BeeButton variant="default" onClick={skip} disabled={busy}>
+                  Salta
+                </BeeButton>
+                <BeeButton variant="primary" onClick={finish} disabled={busy}>
+                  {busy ? "Salvataggio…" : "Fine"}
+                </BeeButton>
+              </div>
+            </>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   );

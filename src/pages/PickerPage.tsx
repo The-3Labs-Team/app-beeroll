@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ipc, events } from "../ipc";
 import { useStore } from "../store";
+import { BeeWindow } from "../components/BeeWindow";
 import { KeywordHeader } from "../components/KeywordHeader";
 import { VideoGrid } from "../components/VideoGrid";
 import { PreviewPane } from "../components/PreviewPane";
 import { TimelineStrip } from "../components/TimelineStrip";
-import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
 import { PointStatusBar } from "../components/PointStatusBar";
 import type { VideoCandidate } from "../types";
 
@@ -27,9 +27,6 @@ export function PickerPage() {
   const point = project?.broll_points[currentIndex];
   const activeKeyword = point ? (editedKeywords[point.id] ?? point.active_keyword) : "";
 
-  // Hard-redirect if user lands here without a project loaded (e.g. after a
-  // full page reload that cleared the Zustand store). Avoids the dead-end
-  // "No project loaded" screen.
   useEffect(() => {
     if (!project) {
       nav("/projects", { replace: true });
@@ -39,12 +36,15 @@ export function PickerPage() {
   useEffect(() => {
     if (!project) return;
     if (project.broll_points.length === 0) return;
-    const next = project.broll_points.findIndex((p) => p.status !== "done" && p.status !== "skipped");
+    const next = project.broll_points.findIndex(
+      (p) => p.status !== "done" && p.status !== "skipped",
+    );
     if (next === -1) {
       nav("/summary");
       return;
     }
     setCurrentIndex(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.slug]);
 
   useEffect(() => {
@@ -52,9 +52,10 @@ export function PickerPage() {
     setSelected(null);
     if (searchResults[point.id]) return;
     runSearch(activeKeyword, point.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point?.id, activeKeyword]);
 
-  // Prefetch search for the next 2 points so they're ready when user advances
+  // Prefetch search for the next 2 points
   useEffect(() => {
     if (!project) return;
     const PREFETCH_COUNT = 2;
@@ -63,24 +64,27 @@ export function PickerPage() {
       const nextPoint = project.broll_points[idx];
       if (!nextPoint) break;
       if (nextPoint.status === "done" || nextPoint.status === "skipped") continue;
-      if (searchResults[nextPoint.id]) continue; // already cached
+      if (searchResults[nextPoint.id]) continue;
 
       const kw = editedKeywords[nextPoint.id] ?? nextPoint.active_keyword;
       if (!kw) continue;
 
-      // fire-and-forget prefetch (non blocca UI)
-      ipc.searchRun(kw)
+      ipc
+        .searchRun(kw)
         .then((results) => setSearchResults(nextPoint.id, results))
         .catch((e) => console.warn("prefetch failed for point", nextPoint.id, e));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentIndex, project?.slug]);
 
   useEffect(() => {
     const offComplete = events.onDownloadComplete((e) => {
       const filename = e.output.split("/").pop() || "clip";
-      toast.success(`Clip ready: ${filename}`);
+      toast.success(`Clip pronta: ${filename}`);
     });
-    return () => { offComplete.then((f) => f()); };
+    return () => {
+      offComplete.then((f) => f());
+    };
   }, []);
 
   const runSearch = async (kw: string, pointId: string) => {
@@ -115,46 +119,41 @@ export function PickerPage() {
 
   const commitSelected = () => {
     if (!point || !selected) return;
-    // Fire-and-forget: download runs in background, advance UI immediately
-    toast.info(`Downloading: ${selected.title.slice(0, 50)}…`);
+    toast.info(`Download: ${selected.title.slice(0, 50)}…`);
     ipc.pickVideo(point.id, selected).catch((e) => {
       console.error("pickVideo failed:", e);
-      toast.error(`Download failed: ${String(e)}`);
+      toast.error(`Download fallito: ${String(e)}`);
     });
     goNext();
   };
 
   const onPause = () => {
     if (!point) return;
-    ipc.cancelDownload(point.id, false).catch((e) =>
-      toast.error(`Pause failed: ${String(e)}`),
-    );
+    ipc
+      .cancelDownload(point.id, false)
+      .catch((e) => toast.error(`Pausa fallita: ${String(e)}`));
   };
   const onStop = () => {
     if (!point) return;
-    ipc.cancelDownload(point.id, true).catch((e) =>
-      toast.error(`Stop failed: ${String(e)}`),
-    );
+    ipc
+      .cancelDownload(point.id, true)
+      .catch((e) => toast.error(`Stop fallito: ${String(e)}`));
   };
   const onResume = () => {
     if (!point || !point.selected_video) return;
-    toast.info(`Resuming: ${point.selected_video.title.slice(0, 50)}…`);
-    ipc.pickVideo(point.id, point.selected_video).catch((e) =>
-      toast.error(`Resume failed: ${String(e)}`),
-    );
+    toast.info(`Ripresa: ${point.selected_video.title.slice(0, 50)}…`);
+    ipc
+      .pickVideo(point.id, point.selected_video)
+      .catch((e) => toast.error(`Ripresa fallita: ${String(e)}`));
   };
 
-  // While the current point is downloading or paused, lock down navigation
-  // mutations so the user can't accidentally clobber state mid-flight.
-  const locked = point ? (point.status === "downloading" || point.status === "paused") : false;
+  const locked = point ? point.status === "downloading" || point.status === "paused" : false;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!project || !point) return;
       const results = searchResults[point.id] || [];
-      // Block keys that would mutate selection / status while busy. Arrow-left
-      // stays available so the user can navigate back without aborting.
-      if (locked && (e.key >= "1" && e.key <= "9")) return;
+      if (locked && e.key >= "1" && e.key <= "9") return;
       if (locked && e.key === "Enter") return;
       if (locked && e.key === "ArrowRight") return;
       if (e.key >= "1" && e.key <= "9") {
@@ -166,20 +165,36 @@ export function PickerPage() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point?.id, selected, searchResults, currentIndex, locked]);
 
-  if (!project) return <div className="p-8">No project loaded.</div>;
-  if (!point) return <div className="p-8">No B-Roll point at index {currentIndex}.</div>;
+  if (!project) {
+    return (
+      <BeeWindow title="BeeRoll" className="w-[1180px] max-w-full h-[820px]">
+        <div className="p-8 font-mono text-[12px] uppercase tracking-[0.4px] text-bee-mute">
+          Nessun progetto caricato.
+        </div>
+      </BeeWindow>
+    );
+  }
+  if (!point) {
+    return (
+      <BeeWindow title="BeeRoll" className="w-[1180px] max-w-full h-[820px]">
+        <div className="p-8 font-mono text-[12px] uppercase tracking-[0.4px] text-bee-mute">
+          Nessun punto B-Roll all'indice {currentIndex}.
+        </div>
+      </BeeWindow>
+    );
+  }
 
   const results = searchResults[point.id] || [];
-  // While downloading or paused, the preview pane should reflect the picked
-  // video (so Pause/Stop/Resume buttons line up with what's actually in
-  // flight), not whatever was last clicked in the grid.
   const previewCandidate = locked ? point.selected_video : selected;
 
   return (
-    <div className="flex flex-col h-screen">
-      <ActiveDownloadsBanner points={project.broll_points} />
+    <BeeWindow
+      title={`BeeRoll · ${project.name}`}
+      className="w-[1180px] max-w-full h-[820px]"
+    >
       <KeywordHeader
         keyword={activeKeyword}
         phrase={point.phrase}
@@ -192,10 +207,18 @@ export function PickerPage() {
         disabled={locked}
       />
       <PointStatusBar point={point} download={downloads[point.id]} />
-      <main className="flex flex-1 overflow-hidden">
-        <div className="flex-1 overflow-y-auto">
-          {searchErr ? <p className="p-8 text-red-600">{searchErr}</p> : null}
-          {!searchResults[point.id] && !searchErr ? <p className="p-8 text-muted-foreground">Searching YouTube…</p> : null}
+      <main className="flex flex-1 overflow-hidden min-h-0" style={{ display: "grid", gridTemplateColumns: "1fr 380px" }}>
+        <div className="border-r-bee border-bee-ink overflow-y-auto bee-scroll px-[22px] pt-1.5 pb-[22px] min-w-0">
+          {searchErr ? (
+            <p className="font-mono text-[12px] font-bold uppercase tracking-[0.4px] text-red-700 p-4 mt-2">
+              {searchErr}
+            </p>
+          ) : null}
+          {!searchResults[point.id] && !searchErr ? (
+            <p className="font-mono text-[12px] font-bold uppercase tracking-[0.4px] text-bee-mute p-4 mt-2">
+              Ricerca su YouTube…
+            </p>
+          ) : null}
           {results.length > 0 && (
             <VideoGrid
               results={results}
@@ -208,7 +231,7 @@ export function PickerPage() {
             />
           )}
         </div>
-        <aside className="w-[420px] border-l border-border">
+        <aside className="overflow-hidden flex flex-col">
           <PreviewPane
             candidate={previewCandidate}
             onCommit={commitSelected}
@@ -224,6 +247,6 @@ export function PickerPage() {
         currentIndex={currentIndex}
         onJump={(i) => setCurrentIndex(i)}
       />
-    </div>
+    </BeeWindow>
   );
 }

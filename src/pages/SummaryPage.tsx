@@ -4,15 +4,17 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import { ipc } from "../ipc";
 import { useStore } from "../store";
-import { Button } from "@/components/ui/button";
+import { BeeWindow } from "../components/BeeWindow";
+import { BeeButton } from "../components/bee/BeeButton";
+import { BeeHL } from "../components/bee/BeeHL";
+import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
 import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
+
+const padded = (n: number) => String(n).padStart(2, "0");
 
 export function SummaryPage() {
   const nav = useNavigate();
   const project = useStore((s) => s.project);
-  // Single busy flag for both export buttons; we never want them clickable
-  // concurrently because both use the OS save dialog and the active project
-  // state on the backend.
   const [exporting, setExporting] = useState<null | "edl" | "fcpxml">(null);
 
   useEffect(() => {
@@ -33,7 +35,6 @@ export function SummaryPage() {
         defaultPath: `${project.name}.${ext}`,
         filters: [{ name: label, extensions: [ext] }],
       });
-      // User cancelled the dialog; nothing to do, no toast.
       if (!path) return;
       setExporting(kind);
       if (kind === "edl") {
@@ -41,52 +42,96 @@ export function SummaryPage() {
       } else {
         await ipc.exportFcpxml(path);
       }
-      toast.success(`${label} exported`, { description: path });
+      toast.success(`${label} esportato`, { description: path });
     } catch (e) {
-      toast.error(`${label} export failed`, { description: String(e) });
+      toast.error(`Esportazione ${label} fallita`, { description: String(e) });
     } finally {
       setExporting(null);
     }
   };
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <ActiveDownloadsBanner points={project.broll_points} />
-      <h1 className="text-3xl font-bold mb-2">{project.name}</h1>
-      <p className="text-muted-foreground mb-8">
-        {done.length} clip generated · {skipped.length} skipped · {project.broll_points.length} total points
-      </p>
+    <BeeWindow
+      title={`BeeRoll · ${project.name}`}
+      className="w-[880px] max-w-full min-h-[660px] h-auto"
+    >
+      <div className="flex-1 overflow-y-auto bee-scroll px-9 pt-6 pb-9">
+        <BeeButton variant="back" onClick={() => nav("/projects")}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          >
+            <path d="M7 2L3 6l4 4M3 6h7" />
+          </svg>
+          Indietro
+        </BeeButton>
 
-      <div className="flex flex-wrap gap-3 mb-8">
-        <Button onClick={() => ipc.openProjectFolder()}>Open folder</Button>
-        <Button
-          variant="outline"
-          onClick={() => runExport("edl")}
-          disabled={exporting !== null || done.length === 0}
-        >
-          {exporting === "edl" ? "Exporting EDL…" : "Export EDL"}
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => runExport("fcpxml")}
-          disabled={exporting !== null || done.length === 0}
-        >
-          {exporting === "fcpxml" ? "Exporting FCPXML…" : "Export FCPXML"}
-        </Button>
-        <Button variant="outline" onClick={() => nav("/projects")}>Back to projects</Button>
+        <ActiveDownloadsBanner points={project.broll_points} />
+
+        <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none mt-[18px] mb-1 break-words">
+          <BeeHL>{project.name}</BeeHL>
+        </h1>
+        <BeeMonoLabel as="div" className="mt-3 mb-6">
+          {done.length} clip · {skipped.length} saltati ·{" "}
+          {project.broll_points.length} punti totali
+        </BeeMonoLabel>
+
+        <div className="flex flex-wrap gap-3 mb-8">
+          <BeeButton variant="primary" onClick={() => ipc.openProjectFolder()}>
+            Apri cartella
+          </BeeButton>
+          <BeeButton
+            variant="default"
+            onClick={() => runExport("edl")}
+            disabled={exporting !== null || done.length === 0}
+          >
+            {exporting === "edl" ? "Esportazione…" : "Esporta EDL"}
+          </BeeButton>
+          <BeeButton
+            variant="default"
+            onClick={() => runExport("fcpxml")}
+            disabled={exporting !== null || done.length === 0}
+          >
+            {exporting === "fcpxml" ? "Esportazione…" : "Esporta FCPXML"}
+          </BeeButton>
+          <BeeButton variant="default" onClick={() => nav("/projects")}>
+            Torna alla lista
+          </BeeButton>
+        </div>
+
+        <h2 className="font-mono text-[11px] font-bold tracking-[0.6px] uppercase mb-3.5 text-bee-ink">
+          Clip generati
+        </h2>
+        {done.length === 0 ? (
+          <BeeMonoLabel as="div">Nessuna clip generata.</BeeMonoLabel>
+        ) : (
+          <ul className="m-0 p-0 list-none flex flex-col gap-2.5">
+            {done.map((p, i) => (
+              <li
+                key={p.id}
+                className="flex items-center justify-between border-bee border-bee-ink bg-white p-3 gap-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-[14px] font-semibold m-0 truncate">
+                    <span className="font-mono bg-bee-ink text-bee-yellow px-1.5 py-px mr-2 text-[11px] tracking-[0.4px]">
+                      {padded(i + 1)}
+                    </span>
+                    {p.phrase}
+                  </p>
+                  <p className="font-mono text-[10.5px] font-medium tracking-[0.3px] uppercase text-bee-mute mt-1 m-0 truncate">
+                    {p.output_clip} · {p.selected_video?.channel}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
-
-      <h2 className="text-xl font-semibold mb-4">Generated clips</h2>
-      <ul className="space-y-2">
-        {done.map((p, i) => (
-          <li key={p.id} className="flex items-center justify-between border border-border rounded-lg p-3">
-            <div>
-              <p className="text-sm font-medium">{i + 1}. {p.phrase}</p>
-              <p className="text-xs text-muted-foreground">{p.output_clip} · © {p.selected_video?.channel}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
+    </BeeWindow>
   );
 }

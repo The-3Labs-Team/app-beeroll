@@ -1,8 +1,25 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   BeeRoll design tokens (brutalist yellow/black)
+   ============================================================ */
+:root {
+  --bee-y: #FFD60A;
+  --bee-y-ink: #0A0A0A;
+  --bee-bk: #0A0A0A;
+  --bee-w: #FFFFFF;
+  --bee-bg: #EAE6DB;
+  --bee-soft: #F4F1E8;
+  --bee-mute: #8A8A8A;
+  --bee-b: 2.5px;
+}
+
 @layer base {
+  /* shadcn/ui hsl tokens (kept for Dialog, Toaster, etc.) */
   :root {
     --background: 0 0% 100%;
     --foreground: 240 10% 4%;
@@ -46,7 +63,96 @@
     --input: 240 4% 16%;
     --ring: 240 5% 65%;
   }
-  body {
-    @apply bg-background text-foreground;
+
+  * {
+    box-sizing: border-box;
   }
+
+  html,
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bee-bg);
+    min-height: 100vh;
+  }
+
+  body {
+    font-family: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--bee-bk);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  #root {
+    min-height: 100vh;
+  }
+}
+
+/* ============================================================
+   BeeRoll global utilities
+   ============================================================ */
+
+/* Custom scrollbar (yellow thumb / black border) */
+.bee-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bee-bk) var(--bee-w);
+}
+.bee-scroll::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+.bee-scroll::-webkit-scrollbar-track {
+  background: var(--bee-w);
+  border-left: var(--bee-b) solid var(--bee-bk);
+}
+.bee-scroll::-webkit-scrollbar-thumb {
+  background: var(--bee-y);
+  border: var(--bee-b) solid var(--bee-bk);
+  border-right: none;
+  border-radius: 0;
+}
+.bee-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--bee-bk);
+}
+.bee-scroll::-webkit-scrollbar-button {
+  display: none;
+}
+
+/* Highlight wrapper for headings — yellow chunk with hard black drop shadow */
+.bee-hl {
+  background: var(--bee-y);
+  color: var(--bee-y-ink);
+  padding: 0 12px 2px;
+  box-shadow: 4px 4px 0 var(--bee-bk);
+  display: inline-block;
+  transform: translateY(-2px) rotate(-1deg);
+}
+
+.bee-hl-sm {
+  background: var(--bee-y);
+  color: var(--bee-y-ink);
+  padding: 2px 10px 4px;
+  box-shadow: 3px 3px 0 var(--bee-bk);
+  display: inline-block;
+}
+
+/* Italic phrase / quote with framing « » */
+.bee-quote {
+  font-family: "Space Grotesk", serif;
+  font-style: italic;
+  font-size: 15px;
+  color: var(--bee-bk);
+  padding-left: 6px;
+}
+.bee-quote::before {
+  content: "« ";
+  color: var(--bee-mute);
+}
+.bee-quote::after {
+  content: " »";
+  color: var(--bee-mute);
+}
+
+/* Toast (sonner) overrides — light bee styling */
+[data-sonner-toaster] {
+  font-family: "Space Grotesk", sans-serif;
 }

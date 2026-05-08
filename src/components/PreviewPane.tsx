@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { BRollStatus, VideoCandidate } from "../types";
-import { Button } from "@/components/ui/button";
+import { BeeButton } from "./bee/BeeButton";
 
 interface Props {
   candidate: VideoCandidate | null;
@@ -28,61 +28,122 @@ export function PreviewPane({
 
   if (!candidate) {
     return (
-      <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8 text-center">
-        <p className="text-lg mb-2">Select a video to preview</p>
-        <p className="text-sm">Click any thumbnail or press 1–9</p>
+      <div className="flex flex-col h-full p-[18px] gap-3.5 bg-bee-soft">
+        <div
+          className="aspect-[16/10] bg-bee-ink border-bee border-bee-ink shadow-bee-y-strong text-white p-[18px] flex flex-col"
+          style={{ minHeight: "200px" }}
+        >
+          <span className="self-start bg-bee-yellow text-bee-ink font-mono text-[10px] font-bold tracking-[0.6px] px-1.5 py-0.5 uppercase">
+            Anteprima
+          </span>
+          <div className="m-auto text-center">
+            <p className="font-bold text-[15px] mb-1.5 leading-tight">
+              Seleziona un video
+            </p>
+            <p className="font-mono text-[11px] uppercase tracking-[0.4px] opacity-70">
+              Clicca una thumbnail · 1–9
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const src = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${muted ? 1 : 0}&modestbranding=1&rel=0`;
+  const src = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${
+    muted ? 1 : 0
+  }&modestbranding=1&rel=0`;
   const isDownloading = pickedPointStatus === "downloading";
   const isPaused = pickedPointStatus === "paused";
 
   return (
-    <div className="flex flex-col h-full p-4 gap-3">
-      <div className="aspect-video bg-black rounded-lg overflow-hidden">
+    <div className="flex flex-col h-full p-[18px] gap-3.5 bg-bee-soft overflow-y-auto bee-scroll">
+      <div className="aspect-[16/10] bg-bee-ink border-bee border-bee-ink shadow-bee-y-strong overflow-hidden relative">
         <iframe
           ref={iframeRef}
           key={candidate.video_id + (muted ? "-m" : "-u")}
           src={src}
           title={candidate.title}
           allow="autoplay; encrypted-media"
-          className="w-full h-full"
+          className="w-full h-full block"
         />
+        <span className="absolute top-3.5 right-3.5 bg-white text-bee-ink font-mono font-bold text-[10px] tracking-[0.4px] px-1.5 py-0.5 border-2 border-bee-ink z-10 pointer-events-none">
+          ▶ YT
+        </span>
       </div>
       <div>
-        <h3 className="font-semibold leading-tight">{candidate.title}</h3>
-        <p className="text-sm text-muted-foreground">by © {candidate.channel}</p>
+        <h3 className="text-[17px] font-bold tracking-[-0.3px] leading-[1.25] m-0">
+          {candidate.title}
+        </h3>
+        <div className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-bee-ink flex items-center gap-1.5 mt-1.5">
+          <span className="w-[18px] h-[18px] rounded-full border-2 border-bee-ink bg-bee-yellow flex-shrink-0" />
+          by · {candidate.channel}
+        </div>
       </div>
-      <div className="flex gap-2 mt-auto">
+      <div className="flex gap-2 mt-auto items-stretch">
         {isDownloading ? (
           <>
-            <Button variant="secondary" onClick={onPause} className="flex-1">
-              Pause
-            </Button>
-            <Button variant="destructive" onClick={onStop} className="flex-1">
-              Stop
-            </Button>
+            <BeeButton variant="default" onClick={onPause} className="flex-1 justify-center">
+              ⏸ Pausa
+            </BeeButton>
+            <BeeButton variant="dark" onClick={onStop} className="flex-1 justify-center">
+              ✕ Stop
+            </BeeButton>
           </>
         ) : isPaused ? (
           <>
-            <Button onClick={onResume} className="flex-1">
-              Resume
-            </Button>
-            <Button variant="destructive" onClick={onStop} className="flex-1">
-              Stop
-            </Button>
+            <BeeButton variant="dark" onClick={onResume} className="flex-1 justify-center">
+              ▶ Riprendi
+            </BeeButton>
+            <BeeButton variant="default" onClick={onStop} className="flex-1 justify-center">
+              ✕ Stop
+            </BeeButton>
           </>
         ) : (
-          <Button onClick={onCommit} className="flex-1">
-            Download & use ✓
-          </Button>
+          <>
+            <BeeButton variant="dark" onClick={onCommit} className="flex-1 justify-center">
+              Scarica e usa
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.4"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M8 2v8M5 7l3 3 3-3M3 13h10" />
+              </svg>
+            </BeeButton>
+            <button
+              type="button"
+              onClick={() => setMuted(!muted)}
+              title="Audio (m)"
+              className="w-[50px] h-[50px] flex-shrink-0 border-bee border-bee-ink bg-white inline-flex items-center justify-center cursor-pointer transition-[background,transform] duration-75 hover:bg-bee-yellow hover:-translate-x-[1px] hover:-translate-y-[1px]"
+            >
+              <span className="text-[16px] leading-none">{muted ? "🔇" : "🔊"}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => window.open(candidate.url, "_blank")}
+              title="Apri su YouTube"
+              className="w-[50px] h-[50px] flex-shrink-0 border-bee border-bee-ink bg-white inline-flex items-center justify-center cursor-pointer transition-[background,transform] duration-75 hover:bg-bee-yellow hover:-translate-x-[1px] hover:-translate-y-[1px]"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M6 4h6v6M12 4L4 12" />
+              </svg>
+            </button>
+          </>
         )}
-        <Button variant="outline" onClick={() => setMuted(!muted)} title="Toggle audio (m)">
-          {muted ? "🔇" : "🔊"}
-        </Button>
-        <Button variant="outline" onClick={() => window.open(candidate.url, "_blank")} title="Open on YouTube">↗</Button>
       </div>
     </div>
   );

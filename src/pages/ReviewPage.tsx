@@ -2,9 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { events, ipc } from "../ipc";
 import { useStore } from "../store";
-import { Button } from "@/components/ui/button";
+import { BeeWindow } from "../components/BeeWindow";
+import { BeeButton } from "../components/bee/BeeButton";
+import { BeeHL } from "../components/bee/BeeHL";
+import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
 
 type Phase = "idle" | "transcribing" | "extracting" | "done" | "error";
+
+const padded = (n: number) => String(n).padStart(2, "0");
 
 export function ReviewPage() {
   const nav = useNavigate();
@@ -20,12 +25,10 @@ export function ReviewPage() {
     void events
       .onTranscriptionProgress((e) => {
         if (e.step === "start") {
-          setProgressMsg(e.message ?? "Transcribing audio…");
+          setProgressMsg(e.message ?? "Trascrizione audio…");
         } else if (e.step === "end") {
           setProgressMsg(
-            `Transcribed ${e.segments ?? 0} segments (${(
-              e.duration_sec ?? 0
-            ).toFixed(1)}s).`,
+            `Trascritti ${e.segments ?? 0} segmenti (${(e.duration_sec ?? 0).toFixed(1)}s).`,
           );
         }
       })
@@ -46,7 +49,6 @@ export function ReviewPage() {
     }
     startedRef.current = true;
     void run();
-    // We deliberately depend on slug only so re-renders don't restart work.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.slug]);
 
@@ -54,21 +56,15 @@ export function ReviewPage() {
     if (!project) return;
     setErr("");
     try {
-      // Audio voiceovers without a transcript must be transcribed first;
-      // otherwise extraction_run errors with "transcript missing".
-      if (
-        project.voiceover.kind === "audio" &&
-        project.transcript.length === 0
-      ) {
+      if (project.voiceover.kind === "audio" && project.transcript.length === 0) {
         setPhase("transcribing");
-        setProgressMsg("Transcribing audio…");
+        setProgressMsg("Trascrizione audio…");
         await ipc.transcriptionRun(project.voiceover.path);
-        // Pull updated project so we know the transcript landed.
         const updated = await ipc.projectLoad(project.slug);
         setProject(updated);
       }
       setPhase("extracting");
-      setProgressMsg("Calling AI to extract B-Roll points…");
+      setProgressMsg("Estrazione punti B-Roll…");
       await ipc.extractionRun();
       const final = await ipc.projectLoad(project.slug);
       setProject(final);
@@ -86,46 +82,108 @@ export function ReviewPage() {
   if (!project) return null;
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
-      <header className="mb-8">
-        <Button variant="ghost" onClick={() => nav("/projects")}>← Projects</Button>
-        <h1 className="text-3xl font-bold mt-4">{project.name}</h1>
-      </header>
+    <BeeWindow
+      title={`BeeRoll · ${project.name}`}
+      className="w-[880px] max-w-full min-h-[660px] h-auto"
+    >
+      <div className="flex-1 overflow-y-auto bee-scroll px-9 pt-6 pb-9">
+        <BeeButton variant="back" onClick={() => nav("/projects")}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          >
+            <path d="M7 2L3 6l4 4M3 6h7" />
+          </svg>
+          Indietro
+        </BeeButton>
 
-      {phase === "transcribing" && (
-        <p className="text-muted-foreground">
-          {progressMsg || "Transcribing audio…"}
-        </p>
-      )}
-      {phase === "extracting" && (
-        <p className="text-muted-foreground">
-          {progressMsg || "Calling AI to extract B-Roll points…"}
-        </p>
-      )}
-      {phase === "error" && err && <p className="text-red-600">{err}</p>}
+        <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none mt-[18px] mb-1 break-words">
+          <BeeHL>{project.name}</BeeHL>
+        </h1>
 
-      {phase === "done" && (
-        <>
-          <h2 className="text-xl font-semibold mb-4">{project.broll_points.length} B-Roll points found</h2>
-          <ul className="space-y-3 mb-8">
-            {project.broll_points.map((p, i) => (
-              <li key={p.id} className="border border-border rounded-lg p-4">
-                <div className="flex justify-between mb-2">
-                  <span className="text-xs text-muted-foreground">#{i + 1}</span>
-                  <span className="text-xs text-muted-foreground capitalize">{p.status}</span>
-                </div>
-                <p className="font-medium mb-2">"{p.phrase}"</p>
-                <div className="flex gap-2 flex-wrap">
-                  {p.keywords.map((kw) => (
-                    <span key={kw} className={`text-xs px-2 py-1 rounded ${kw === p.active_keyword ? "bg-primary text-primary-foreground" : "bg-muted"}`}>{kw}</span>
-                  ))}
-                </div>
-              </li>
-            ))}
-          </ul>
-          <Button size="lg" onClick={() => nav("/picker")}>Start picking videos →</Button>
-        </>
-      )}
-    </div>
+        {phase === "transcribing" && (
+          <BeeMonoLabel as="div" className="mt-4">
+            ↻ {progressMsg || "Trascrizione audio…"}
+          </BeeMonoLabel>
+        )}
+        {phase === "extracting" && (
+          <BeeMonoLabel as="div" className="mt-4">
+            ↻ {progressMsg || "Estrazione punti B-Roll…"}
+          </BeeMonoLabel>
+        )}
+        {phase === "error" && err && (
+          <p className="mt-4 font-mono text-[12px] font-bold uppercase tracking-[0.4px] text-red-700 break-words">
+            ! {err}
+          </p>
+        )}
+
+        {phase === "done" && (
+          <>
+            <BeeMonoLabel as="div" className="mt-3 mb-6">
+              {project.broll_points.length} punti B-Roll trovati
+            </BeeMonoLabel>
+            <ul className="m-0 p-0 list-none flex flex-col gap-3 mb-8">
+              {project.broll_points.map((p, i) => (
+                <li
+                  key={p.id}
+                  className="border-bee border-bee-ink p-4 bg-white"
+                >
+                  <div className="flex justify-between mb-2 gap-3">
+                    <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase bg-bee-ink text-bee-yellow px-1.5 py-0.5 leading-none">
+                      {padded(i + 1)}
+                    </span>
+                    <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-bee-mute">
+                      {p.status}
+                    </span>
+                  </div>
+                  <p className="text-[15px] font-medium italic mb-2.5 m-0 leading-snug">
+                    « {p.phrase} »
+                  </p>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {p.keywords.map((kw) => (
+                      <span
+                        key={kw}
+                        className={`text-[12px] font-semibold px-2 py-1 border-2 border-bee-ink ${
+                          kw === p.active_keyword
+                            ? "bg-bee-yellow text-bee-ink"
+                            : "bg-white text-bee-ink"
+                        }`}
+                      >
+                        {kw}
+                      </span>
+                    ))}
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="border-t-bee border-bee-ink pt-6 flex items-center justify-between gap-4 flex-wrap">
+              <BeeMonoLabel as="div" className="max-w-[340px] leading-[1.5]">
+                Scegli un video YouTube per ogni punto · scarica e usa.
+              </BeeMonoLabel>
+              <BeeButton variant="cta-large" onClick={() => nav("/picker")}>
+                Inizia a scegliere video
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.4"
+                  strokeLinecap="round"
+                >
+                  <path d="M4 9h10M9 4l5 5-5 5" />
+                </svg>
+              </BeeButton>
+            </div>
+          </>
+        )}
+      </div>
+    </BeeWindow>
   );
 }

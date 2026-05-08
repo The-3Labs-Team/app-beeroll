@@ -120,8 +120,8 @@ describe("PickerPage", () => {
       fireEvent.click(thumb);
     });
 
-    // Click Download & use
-    const downloadBtn = await screen.findByText(/Download & use/i);
+    // Click Scarica e usa (Italian Download & use)
+    const downloadBtn = await screen.findByText(/Scarica e usa/i);
     await act(async () => {
       fireEvent.click(downloadBtn);
     });
@@ -155,7 +155,7 @@ describe("PickerPage", () => {
       fireEvent.click(thumb);
     });
 
-    const downloadBtn = await screen.findByText(/Download & use/i);
+    const downloadBtn = await screen.findByText(/Scarica e usa/i);
     await act(async () => {
       fireEvent.click(downloadBtn);
     });

@@ -7,8 +7,10 @@ import type {
   ProviderId,
   TranscriptionProviderId,
 } from "../types";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { BeeWindow } from "../components/BeeWindow";
+import { BeeButton } from "../components/bee/BeeButton";
+import { BeeHL } from "../components/bee/BeeHL";
+import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
 
 type Status = "idle" | "saving" | "testing" | "ok" | "error";
 
@@ -22,7 +24,7 @@ interface ProviderOption {
 const PROVIDERS: ProviderOption[] = [
   { id: "anthropic_api", label: "Anthropic API", kind: "api" },
   { id: "openai_api", label: "OpenAI API", kind: "api" },
-  { id: "ollama", label: "Ollama (local)", kind: "ollama", cliKey: "ollama" },
+  { id: "ollama", label: "Ollama (locale)", kind: "ollama", cliKey: "ollama" },
   { id: "claude_cli", label: "Claude CLI", kind: "cli", cliKey: "claude" },
   { id: "codex_cli", label: "Codex CLI", kind: "cli", cliKey: "codex" },
 ];
@@ -36,6 +38,9 @@ const TRANSCRIPTION_PROVIDERS: TranscriptionOption[] = [
   { id: "groq_api", label: "Groq Whisper (default)" },
   { id: "openai_api", label: "OpenAI Whisper" },
 ];
+
+const beeInputClass =
+  "w-full h-[46px] border-bee border-bee-ink bg-white px-3.5 font-mono text-[13px] font-medium text-bee-ink outline-none transition-shadow duration-75 focus:shadow-[5px_5px_0_#FFD60A] placeholder:text-bee-mute placeholder:font-normal";
 
 export function SettingsPage() {
   const nav = useNavigate();
@@ -69,9 +74,11 @@ export function SettingsPage() {
 
   if (!settings) {
     return (
-      <div className="p-8 max-w-2xl mx-auto">
-        <p className="text-muted-foreground">Loading settings…</p>
-      </div>
+      <BeeWindow title="BeeRoll · Impostazioni" className="w-[880px] max-w-full min-h-[660px] h-auto">
+        <div className="p-9">
+          <BeeMonoLabel as="div">Caricamento impostazioni…</BeeMonoLabel>
+        </div>
+      </BeeWindow>
     );
   }
 
@@ -88,7 +95,6 @@ export function SettingsPage() {
     setStatus("saving");
     setErr("");
     try {
-      // Persist any non-empty API keys before saving the settings & testing.
       if (anthropicKey.trim() !== "") {
         await ipc.settingsSetAnthropicKey(anthropicKey.trim());
       }
@@ -106,7 +112,7 @@ export function SettingsPage() {
         setStatus("ok");
       } else {
         setStatus("error");
-        setErr("Settings saved, but provider test ping did not succeed.");
+        setErr("Impostazioni salvate, ma il test del provider non è riuscito.");
       }
     } catch (e) {
       setStatus("error");
@@ -116,171 +122,216 @@ export function SettingsPage() {
 
   const renderCliBadge = (cliKey: keyof AiCliStatus) => {
     if (!cliStatus) {
-      return (
-        <span className="text-muted-foreground text-xs">Detecting…</span>
-      );
+      return <BeeMonoLabel className="ml-2">Rilevamento…</BeeMonoLabel>;
     }
     const tool = cliStatus[cliKey];
     if (tool.found) {
       return (
-        <span className="text-green-600 text-xs">
-          Rilevato ✓ {tool.path ? `(${tool.path})` : ""}
+        <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase bg-bee-yellow text-bee-ink px-2 py-1 border-2 border-bee-ink">
+          ✓ Rilevato
         </span>
       );
     }
-    return <span className="text-red-600 text-xs">Non installato ✗</span>;
+    return (
+      <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase bg-white text-bee-mute px-2 py-1 border-2 border-bee-mute">
+        ✕ Non installato
+      </span>
+    );
   };
 
   const renderProviderConfig = (p: ProviderOption) => {
     if (selected !== p.id) return null;
     if (p.id === "anthropic_api") {
       return (
-        <div className="mt-3 space-y-2">
-          <label className="text-sm text-muted-foreground">Anthropic API key</label>
-          <Input
+        <div className="mt-3 flex flex-col gap-2">
+          <BeeMonoLabel as="label">Anthropic API key</BeeMonoLabel>
+          <input
             type="password"
-            placeholder="sk-ant-... (leave blank to keep existing key)"
+            placeholder="sk-ant-... (lascia vuoto per mantenere)"
             value={anthropicKey}
             onChange={(e) => setAnthropicKey(e.target.value)}
+            className={beeInputClass}
           />
         </div>
       );
     }
     if (p.id === "openai_api") {
       return (
-        <div className="mt-3 space-y-2">
-          <label className="text-sm text-muted-foreground">OpenAI API key</label>
-          <Input
+        <div className="mt-3 flex flex-col gap-2">
+          <BeeMonoLabel as="label">OpenAI API key</BeeMonoLabel>
+          <input
             type="password"
-            placeholder="sk-... (leave blank to keep existing key)"
+            placeholder="sk-... (lascia vuoto per mantenere)"
             value={openaiKey}
             onChange={(e) => setOpenaiKey(e.target.value)}
+            className={beeInputClass}
           />
         </div>
       );
     }
     if (p.id === "ollama") {
       return (
-        <div className="mt-3 space-y-2">
-          <label className="text-sm text-muted-foreground">
+        <div className="mt-3 flex flex-col gap-2">
+          <BeeMonoLabel as="label">
             Ollama base URL (default <code>http://localhost:11434</code>)
-          </label>
-          <Input
+          </BeeMonoLabel>
+          <input
             type="text"
             placeholder="http://localhost:11434"
             value={settings.ollama_base_url ?? ""}
             onChange={(e) => updateOllamaUrl(e.target.value)}
+            className={beeInputClass}
           />
         </div>
       );
     }
-    // CLI providers — nothing extra to configure beyond auto-detection.
     return (
-      <p className="mt-3 text-sm text-muted-foreground">
-        The binary is resolved via your <code>PATH</code> automatically.
-      </p>
+      <BeeMonoLabel as="p" className="mt-3 normal-case tracking-normal text-[12px]">
+        Il binario viene risolto automaticamente via <code>PATH</code>.
+      </BeeMonoLabel>
     );
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto">
-      <header className="mb-8">
-        <Button variant="ghost" onClick={() => nav("/projects")}>← Back</Button>
-        <h1 className="text-3xl font-bold mt-4">Settings</h1>
-      </header>
+    <BeeWindow
+      title="BeeRoll · Impostazioni"
+      className="w-[880px] max-w-full min-h-[660px] h-auto"
+    >
+      <div className="flex-1 overflow-y-auto bee-scroll px-9 pt-6 pb-9">
+        <BeeButton variant="back" onClick={() => nav("/projects")}>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+          >
+            <path d="M7 2L3 6l4 4M3 6h7" />
+          </svg>
+          Indietro
+        </BeeButton>
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">AI provider</h2>
-        <p className="text-muted-foreground text-sm">
-          Choose how the app generates B-roll suggestions. API keys are stored in your
-          system keychain; everything else lives in <code>~/.config/video-broll/settings.json</code>.
-        </p>
+        <h1 className="text-[46px] font-bold tracking-[-1.2px] leading-none mt-[18px] mb-1">
+          <BeeHL>Impostazioni</BeeHL>
+        </h1>
 
-        <div className="space-y-3">
-          {PROVIDERS.map((p) => (
-            <label
-              key={p.id}
-              className="block border border-input rounded-md p-4 cursor-pointer hover:bg-accent/40"
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name="provider"
-                  checked={selected === p.id}
-                  onChange={() => updateProvider(p.id)}
-                />
-                <span className="font-medium flex-1">{p.label}</span>
-                {p.cliKey && renderCliBadge(p.cliKey)}
-              </div>
-              {renderProviderConfig(p)}
-            </label>
-          ))}
-        </div>
+        <section className="mt-8 flex flex-col gap-4">
+          <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
+            Provider AI
+          </h2>
+          <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
+            Scegli come l'app genera i suggerimenti B-Roll. Le API key sono salvate
+            nel keychain di sistema; il resto vive in{" "}
+            <code className="bg-bee-ink text-bee-yellow px-1.5 py-0.5">
+              ~/.config/video-broll/settings.json
+            </code>
+            .
+          </BeeMonoLabel>
 
-        <Button
-          onClick={save}
-          disabled={status === "saving" || status === "testing"}
-        >
-          {status === "saving"
-            ? "Saving…"
-            : status === "testing"
-            ? "Testing…"
-            : "Save & test"}
-        </Button>
-        {status === "ok" && (
-          <p className="text-green-600 text-sm">Settings saved and provider verified ✓</p>
-        )}
-        {status === "error" && err && (
-          <p className="text-red-600 text-sm">{err}</p>
-        )}
-      </section>
-
-      <section className="space-y-4 mt-10">
-        <h2 className="text-xl font-semibold">Transcription provider</h2>
-        <p className="text-muted-foreground text-sm">
-          Used when a project's voiceover is an audio file. Both providers
-          share an OpenAI-compatible Whisper API.
-        </p>
-
-        <div className="space-y-3">
-          {TRANSCRIPTION_PROVIDERS.map((p) => (
-            <label
-              key={p.id}
-              className="block border border-input rounded-md p-4 cursor-pointer hover:bg-accent/40"
-            >
-              <div className="flex items-center gap-3">
-                <input
-                  type="radio"
-                  name="transcription_provider"
-                  checked={settings.transcription_provider === p.id}
-                  onChange={() => updateTranscriptionProvider(p.id)}
-                />
-                <span className="font-medium flex-1">{p.label}</span>
-              </div>
-              {settings.transcription_provider === p.id && p.id === "groq_api" && (
-                <div className="mt-3 space-y-2">
-                  <label className="text-sm text-muted-foreground">
-                    Groq API key
-                  </label>
-                  <Input
-                    type="password"
-                    placeholder="gsk_... (leave blank to keep existing key)"
-                    value={groqKey}
-                    onChange={(e) => setGroqKey(e.target.value)}
+          <div className="flex flex-col gap-3">
+            {PROVIDERS.map((p) => (
+              <label
+                key={p.id}
+                className={`block border-bee border-bee-ink p-4 cursor-pointer transition-[transform,box-shadow] duration-75 ${
+                  selected === p.id
+                    ? "bg-bee-yellow shadow-bee-2"
+                    : "bg-white hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-bee-1"
+                }`}
+              >
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input
+                    type="radio"
+                    name="provider"
+                    checked={selected === p.id}
+                    onChange={() => updateProvider(p.id)}
+                    className="accent-bee-ink h-4 w-4"
                   />
+                  <span className="font-bold flex-1 text-[15px]">{p.label}</span>
+                  {p.cliKey && renderCliBadge(p.cliKey)}
                 </div>
-              )}
-              {settings.transcription_provider === p.id &&
-                p.id === "openai_api" && (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    Uses the OpenAI API key configured above for the AI
-                    provider section.
-                  </p>
+                {renderProviderConfig(p)}
+              </label>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap mt-2">
+            <BeeButton
+              variant="primary"
+              onClick={save}
+              disabled={status === "saving" || status === "testing"}
+            >
+              {status === "saving"
+                ? "Salvataggio…"
+                : status === "testing"
+                ? "Test in corso…"
+                : "Salva e testa"}
+            </BeeButton>
+            {status === "ok" && (
+              <BeeMonoLabel as="span" tone="strong">
+                ✓ Impostazioni verificate
+              </BeeMonoLabel>
+            )}
+            {status === "error" && err && (
+              <span className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-red-700">
+                ! {err}
+              </span>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-12 flex flex-col gap-4">
+          <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
+            Trascrizione
+          </h2>
+          <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
+            Usato quando la voce di un progetto è un file audio. Entrambi i
+            provider condividono la API Whisper compatibile OpenAI.
+          </BeeMonoLabel>
+
+          <div className="flex flex-col gap-3">
+            {TRANSCRIPTION_PROVIDERS.map((p) => (
+              <label
+                key={p.id}
+                className={`block border-bee border-bee-ink p-4 cursor-pointer transition-[transform,box-shadow] duration-75 ${
+                  settings.transcription_provider === p.id
+                    ? "bg-bee-yellow shadow-bee-2"
+                    : "bg-white hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-bee-1"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <input
+                    type="radio"
+                    name="transcription_provider"
+                    checked={settings.transcription_provider === p.id}
+                    onChange={() => updateTranscriptionProvider(p.id)}
+                    className="accent-bee-ink h-4 w-4"
+                  />
+                  <span className="font-bold flex-1 text-[15px]">{p.label}</span>
+                </div>
+                {settings.transcription_provider === p.id && p.id === "groq_api" && (
+                  <div className="mt-3 flex flex-col gap-2">
+                    <BeeMonoLabel as="label">Groq API key</BeeMonoLabel>
+                    <input
+                      type="password"
+                      placeholder="gsk_... (lascia vuoto per mantenere)"
+                      value={groqKey}
+                      onChange={(e) => setGroqKey(e.target.value)}
+                      className={beeInputClass}
+                    />
+                  </div>
                 )}
-            </label>
-          ))}
-        </div>
-      </section>
-    </div>
+                {settings.transcription_provider === p.id && p.id === "openai_api" && (
+                  <BeeMonoLabel as="p" className="mt-3 normal-case tracking-normal text-[12px]">
+                    Usa la API key OpenAI configurata sopra.
+                  </BeeMonoLabel>
+                )}
+              </label>
+            ))}
+          </div>
+        </section>
+      </div>
+    </BeeWindow>
   );
 }
