@@ -49,25 +49,58 @@ export function PreviewPane({
     );
   }
 
-  const src = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${
+  const ytSrc = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${
     muted ? 1 : 0
   }&modestbranding=1&rel=0`;
   const isDownloading = pickedPointStatus === "downloading";
   const isPaused = pickedPointStatus === "paused";
+  const sourceLabel =
+    candidate.source === "youtube"
+      ? "YT"
+      : candidate.source === "pixabay"
+      ? "PX"
+      : candidate.source === "pexels"
+      ? "PE"
+      : "?";
 
   return (
     <div className="flex flex-col h-full p-[18px] gap-3.5 bg-bee-soft overflow-y-auto bee-scroll">
       <div className="aspect-[16/10] bg-bee-ink border-bee border-bee-ink shadow-bee-y-strong overflow-hidden relative">
-        <iframe
-          ref={iframeRef}
-          key={candidate.video_id + (muted ? "-m" : "-u")}
-          src={src}
-          title={candidate.title}
-          allow="autoplay; encrypted-media"
-          className="w-full h-full block"
-        />
+        {candidate.source === "youtube" ? (
+          <iframe
+            ref={iframeRef}
+            key={candidate.video_id + (muted ? "-m" : "-u")}
+            src={ytSrc}
+            title={candidate.title}
+            allow="autoplay; encrypted-media"
+            className="w-full h-full block"
+          />
+        ) : candidate.stream_url ? (
+          <video
+            key={candidate.video_id + (muted ? "-m" : "-u")}
+            src={candidate.stream_url}
+            controls
+            autoPlay
+            muted={muted}
+            className="w-full h-full object-contain bg-black"
+          />
+        ) : (
+          <div className="w-full h-full flex flex-col items-center justify-center text-white p-6 text-center">
+            <p className="font-mono text-[11px] uppercase tracking-[0.4px] text-bee-yellow mb-2">
+              Anteprima non disponibile
+            </p>
+            <a
+              href={candidate.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="text-bee-yellow underline font-bold text-sm"
+            >
+              ↗ Apri sulla sorgente
+            </a>
+          </div>
+        )}
         <span className="absolute top-3.5 right-3.5 bg-white text-bee-ink font-mono font-bold text-[10px] tracking-[0.4px] px-1.5 py-0.5 border-2 border-bee-ink z-10 pointer-events-none">
-          ▶ YT
+          ▶ {sourceLabel}
         </span>
       </div>
       <div>
@@ -126,7 +159,7 @@ export function PreviewPane({
             <button
               type="button"
               onClick={() => window.open(candidate.url, "_blank")}
-              title="Apri su YouTube"
+              title="Apri sulla sorgente"
               className="w-[50px] h-[50px] flex-shrink-0 border-bee border-bee-ink bg-white inline-flex items-center justify-center cursor-pointer transition-[background,transform] duration-75 hover:bg-bee-yellow hover:-translate-x-[1px] hover:-translate-y-[1px]"
             >
               <svg
