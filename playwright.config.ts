@@ -3,6 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e-pw",
   fullyParallel: false,
+  workers: 1,
   reporter: [["list"]],
   webServer: {
     command: "npm run dev -- --host 127.0.0.1",
