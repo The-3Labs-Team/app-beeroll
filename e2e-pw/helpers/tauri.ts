@@ -1,6 +1,22 @@
 import type { Page } from "@playwright/test";
 
 export async function mockTauri(page: Page) {
+  await page.route("**/*", async (route) => {
+    const url = new URL(route.request().url());
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      await route.continue();
+      return;
+    }
+
+    if (url.hostname === "127.0.0.1" || url.hostname === "localhost") {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({ status: 204, body: "" });
+  });
+
   await page.addInitScript(() => {
     const responses: Record<string, unknown> = {
       first_run_status: {
@@ -35,7 +51,7 @@ export async function mockTauri(page: Page) {
       transformCallback: (cb: unknown) => cb,
       invoke: async (cmd: string) => {
         if (cmd in responses) return responses[cmd];
-        return null;
+        throw new Error(`Unhandled Tauri command in Playwright mock: ${cmd}`);
       },
     };
     (window as Window & {

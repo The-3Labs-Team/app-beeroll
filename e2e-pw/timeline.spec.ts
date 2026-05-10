@@ -12,6 +12,8 @@ test("timeline shows SVG progress ring when point is downloading", async ({ page
     // a debug hook for tests.
     const w = window as any;
     if (!w.__STORE_FOR_TEST__) throw new Error("test hook __STORE_FOR_TEST__ not exposed");
+    const thumb =
+      "data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20320%20180%22%3E%3Crect%20width%3D%22320%22%20height%3D%22180%22%20fill%3D%22%23263238%22%2F%3E%3Cpath%20d%3D%22M132%2050l76%2040-76%2040z%22%20fill%3D%22%23e8f0f2%22%2F%3E%3C%2Fsvg%3E";
     w.__STORE_FOR_TEST__.setState({
       project: {
         version: 1,
@@ -29,9 +31,9 @@ test("timeline shows SVG progress ring when point is downloading", async ({ page
       currentIndex: 0,
       searchResults: {
         bp_01: [
-          { source: "youtube", video_id: "vidyt", title: "YouTube clip", channel: "YT Ch", duration_sec: 120, thumb_url: "https://i.ytimg.com/vi/vidyt/mqdefault.jpg", url: "https://www.youtube.com/watch?v=vidyt", stream_url: null },
-          { source: "pixabay", video_id: "12345", title: "Pixabay clip", channel: "px_user", duration_sec: 30, thumb_url: "https://i.vimeocdn.com/video/abc_640x360.jpg", url: "https://pixabay.com/videos/12345/", stream_url: "https://cdn.pixabay.com/video/12345/medium.mp4" },
-          { source: "pexels", video_id: "67890", title: "Pexels clip", channel: "pe_user", duration_sec: 17, thumb_url: "https://images.pexels.com/videos/67890/thumb.jpg", url: "https://www.pexels.com/video/67890/", stream_url: "https://videos.pexels.com/67890_hd.mp4" },
+          { source: "youtube", video_id: "vidyt", title: "YouTube clip", channel: "YT Ch", duration_sec: 120, thumb_url: thumb, url: "https://www.youtube.com/watch?v=vidyt", stream_url: null },
+          { source: "pixabay", video_id: "12345", title: "Pixabay clip", channel: "px_user", duration_sec: 30, thumb_url: thumb, url: "https://pixabay.com/videos/12345/", stream_url: "https://cdn.pixabay.com/video/12345/medium.mp4" },
+          { source: "pexels", video_id: "67890", title: "Pexels clip", channel: "pe_user", duration_sec: 17, thumb_url: thumb, url: "https://www.pexels.com/video/67890/", stream_url: "https://videos.pexels.com/67890_hd.mp4" },
         ],
       },
       downloads: { bp_01: { point_id: "bp_01", percent: 42.5, eta_sec: 12 } },
