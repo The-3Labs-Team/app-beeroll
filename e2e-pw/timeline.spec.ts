@@ -1,41 +1,5 @@
-import { test, expect, Page } from "@playwright/test";
-
-/**
- * Mocks the @tauri-apps/api invoke + listen modules + window internals so the
- * React app can boot at http://localhost:1420 without a Tauri runtime. We can
- * then poke the Zustand store directly to put it in any UI state we want and
- * assert against rendered DOM.
- */
-async function mockTauri(page: Page) {
-  await page.addInitScript(() => {
-    // @ts-expect-error global stub
-    window.__TAURI_INTERNALS__ = {
-      transformCallback: (cb: unknown) => cb,
-      invoke: async (cmd: string) => {
-        if (cmd === "first_run_status") {
-          return {
-            is_first_run: false,
-            has_anthropic_key: true,
-            has_openai_key: false,
-            has_groq_key: false,
-            toolchain: { ytdlp: { found: true, path: null, version: null }, ffmpeg: { found: true, path: null, version: null } },
-            ai_clis: { claude: { found: false, path: null, version: null }, codex: { found: false, path: null, version: null }, ollama: { found: false, path: null, version: null } },
-          };
-        }
-        if (cmd === "toolchain_status") {
-          return { ytdlp: { found: true, path: null, version: null }, ffmpeg: { found: true, path: null, version: null } };
-        }
-        if (cmd === "toolchain_bootstrap") return true;
-        if (cmd === "project_list") return [];
-        return null;
-      },
-    };
-    // @ts-expect-error global stub
-    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
-      unregisterListener: () => {},
-    };
-  });
-}
+import { test, expect } from "@playwright/test";
+import { mockTauri } from "./helpers/tauri";
 
 test("timeline shows SVG progress ring when point is downloading", async ({ page }) => {
   await mockTauri(page);
