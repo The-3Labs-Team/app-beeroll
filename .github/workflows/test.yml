@@ -38,6 +38,14 @@ jobs:
       - name: Install frontend deps
         run: npm ci
 
+      - name: Install Playwright Chromium dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright Chromium
+        if: matrix.platform != 'ubuntu-latest'
+        run: npx playwright install chromium
+
       - name: Fetch ffmpeg sidecar for host target
         shell: bash
         run: bash scripts/fetch-binaries.sh
@@ -48,8 +56,11 @@ jobs:
       - name: TypeScript check
         run: npx tsc --noEmit
 
-      - name: Vitest
-        run: npx vitest run
+      - name: Vitest coverage
+        run: npm run test:coverage
 
       - name: Vite build
         run: npm run build
+
+      - name: Playwright
+        run: npm run test:pw
