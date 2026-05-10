@@ -25,6 +25,12 @@ pub struct AppState {
     /// task. Entries are inserted at the start of [`pick_video`] and removed
     /// either by [`cancel_download`] or when `pick_video` finishes.
     pub active_downloads: TokioMutex<HashMap<String, Arc<Notify>>>,
+    /// In-memory cache of YouTube search results keyed by lowercased keyword.
+    /// Hits return instantly (~0ms) instead of paying the 1-15s yt-dlp cost.
+    /// Lifetime is the app session — no TTL. Memory bound is small (each
+    /// candidate is a few hundred bytes; we cap to the most-recent N entries
+    /// in `search_run`).
+    pub yt_cache: RwLock<HashMap<String, Vec<VideoCandidate>>>,
 }
 
 #[derive(Clone, Default)]
@@ -38,7 +44,9 @@ fn projects_root() -> PathBuf {
 }
 
 /// Build a [`ProviderConfig`] by combining persisted [`AppSettings`] with
-/// secrets pulled from the OS keyring.
+/// secrets pulled from the OS keyring. The model is resolved from the active
+/// preset (or from `model_overrides` when in custom mode) for the currently
+/// selected provider.
 fn build_provider_config(settings: &AppSettings) -> AppResult<ProviderConfig> {
     Ok(ProviderConfig {
         anthropic_key: SettingsStore::get_anthropic_key()?,
@@ -46,6 +54,7 @@ fn build_provider_config(settings: &AppSettings) -> AppResult<ProviderConfig> {
         ollama_base_url: settings.ollama_base_url.clone(),
         claude_cli_path: settings.claude_cli_path.clone(),
         codex_cli_path: settings.codex_cli_path.clone(),
+        model: settings.resolved_model(&settings.selected_provider),
     })
 }
 
@@ -165,6 +174,20 @@ pub async fn settings_set_pixabay_key(key: String) -> AppResult<()> {
 #[tauri::command]
 pub async fn settings_set_pexels_key(key: String) -> AppResult<()> {
     SettingsStore::set_pexels_key(&key)
+}
+
+#[tauri::command]
+pub async fn settings_set_youtube_key(key: String) -> AppResult<()> {
+    SettingsStore::set_youtube_key(&key)
+}
+
+#[tauri::command]
+pub async fn settings_test_youtube() -> AppResult<bool> {
+    let key = SettingsStore::get_youtube_key()?
+        .ok_or_else(|| AppError::InvalidInput("no youtube key set".into()))?;
+    let source = crate::search::YouTubeApiSource::new(key);
+    let results = source.search("test", 1).await?;
+    Ok(!results.is_empty())
 }
 
 #[tauri::command]
@@ -329,7 +352,30 @@ pub async fn transcription_run(
     )
     .ok();
 
-    let result = provider.transcribe(&resolved).await?;
+    // Transcode to 16kHz mono FLAC before upload. This is the single biggest
+    // win for transcription latency on large voiceovers: a 1-hour 60MB MP3
+    // becomes a ~12MB FLAC, fitting under the 25MB Whisper limit and shaving
+    // tens of seconds off the upload phase. If ffmpeg is missing or the
+    // transcode fails we fall back to the original file rather than failing
+    // outright — the user still gets the slow path instead of an error.
+    let transcoded = match transcription::preprocess::transcode_for_whisper(&app, &resolved).await
+    {
+        Ok(p) => Some(p),
+        Err(e) => {
+            tracing::warn!(error = %e, "audio preprocess failed, falling back to original file");
+            None
+        }
+    };
+    let upload_path: &std::path::Path = transcoded.as_deref().unwrap_or(&resolved);
+
+    let result = provider.transcribe(upload_path).await;
+
+    if let Some(p) = &transcoded {
+        // Best-effort cleanup of the temp FLAC. If this fails the OS cleans
+        // /tmp eventually anyway.
+        let _ = tokio::fs::remove_file(p).await;
+    }
+    let result = result?;
 
     store.set_transcript(result.segments.clone()).await?;
     let project_after = store.project().await;
@@ -370,19 +416,92 @@ async fn await_ytdlp(state: &AppState) -> AppResult<String> {
     ))
 }
 
+/// Maximum keywords cached in `yt_cache`. When the cache exceeds this we
+/// drop the oldest half — a coarse LRU. 64 is plenty for a typical session
+/// (one project rarely has more than a dozen distinct keywords) while keeping
+/// memory negligible.
+const YT_CACHE_MAX: usize = 64;
+
+/// Search YouTube only. Used as the *primary* fast path: the picker UI calls
+/// this first and renders the results as soon as they arrive.
+///
+/// Provider preference (in order):
+///   1. **YouTube Data API v3** if the user has configured a key in settings
+///      — typically 150-300ms per query, 100 units per `search.list` call,
+///      ≈100 searches/day on the free 10k-unit tier.
+///   2. **yt-dlp** — works without any setup, but takes 1.5-15s depending on
+///      whether the host has yt-dlp on PATH or only the bundled standalone.
+///
+/// After the YouTube call returns, the picker UI issues a background
+/// `search_run_extras` to enrich the grid with stock candidates without
+/// blocking the initial render.
+///
+/// Results are cached in-memory by lowercased keyword for the lifetime of the
+/// app session, so going back to a previously visited point or re-typing the
+/// same keyword resolves instantly.
 #[tauri::command]
 pub async fn search_run(
     state: State<'_, AppState>,
     keyword: String,
 ) -> AppResult<Vec<VideoCandidate>> {
-    let ytdlp = await_ytdlp(&state).await?;
-    let mut sources: Vec<Arc<dyn crate::search::VideoSource>> =
-        vec![Arc::new(crate::search::YouTubeSource::new(ytdlp))];
+    let cache_key = keyword.trim().to_lowercase();
+    if !cache_key.is_empty() {
+        if let Some(hit) = state.yt_cache.read().await.get(&cache_key).cloned() {
+            tracing::debug!(keyword = %cache_key, count = hit.len(), "yt cache hit");
+            return Ok(hit);
+        }
+    }
+
+    let results = if let Some(yt_key) = SettingsStore::get_youtube_key()? {
+        let api = crate::search::YouTubeApiSource::new(yt_key);
+        match crate::search::VideoSource::search(&api, &keyword, 9).await {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(error = %e, "youtube api failed, falling back to yt-dlp");
+                let ytdlp = await_ytdlp(&state).await?;
+                let yt = crate::search::YouTubeSource::new(ytdlp);
+                crate::search::VideoSource::search(&yt, &keyword, 9).await?
+            }
+        }
+    } else {
+        let ytdlp = await_ytdlp(&state).await?;
+        let yt = crate::search::YouTubeSource::new(ytdlp);
+        crate::search::VideoSource::search(&yt, &keyword, 9).await?
+    };
+
+    if !cache_key.is_empty() {
+        let mut cache = state.yt_cache.write().await;
+        if cache.len() >= YT_CACHE_MAX {
+            // Coarse LRU: drop half the entries. Cheap and predictable;
+            // avoids carrying a separate access-time table for each entry.
+            let drop_count = cache.len() / 2;
+            let to_drop: Vec<String> = cache.keys().take(drop_count).cloned().collect();
+            for k in to_drop {
+                cache.remove(&k);
+            }
+        }
+        cache.insert(cache_key, results.clone());
+    }
+    Ok(results)
+}
+
+/// Search the configured stock providers (Pixabay + Pexels) in parallel.
+/// Returns an empty vec when no API keys are configured. Errors from a single
+/// provider are logged and dropped — the picker treats this as a best-effort
+/// enrichment step, never as a fatal error for the search.
+#[tauri::command]
+pub async fn search_run_extras(
+    keyword: String,
+) -> AppResult<Vec<VideoCandidate>> {
+    let mut sources: Vec<Arc<dyn crate::search::VideoSource>> = Vec::new();
     if let Some(k) = SettingsStore::get_pixabay_key()? {
         sources.push(Arc::new(crate::search::PixabaySource::new(k)));
     }
     if let Some(k) = SettingsStore::get_pexels_key()? {
         sources.push(Arc::new(crate::search::PexelsSource::new(k)));
+    }
+    if sources.is_empty() {
+        return Ok(Vec::new());
     }
     let agg = crate::search::MultiSourceSearch::new(sources);
     Ok(agg.search(&keyword, 9).await)
@@ -629,18 +748,96 @@ pub async fn skip_point(
     Ok(())
 }
 
+/// Reveal a project folder in Finder. With `slug = None` opens the currently
+/// loaded project (preserves the original no-arg call site). With `slug =
+/// Some(...)` opens that project directly — used by the dashboard which does
+/// not load a project before opening it.
 #[tauri::command]
-pub async fn open_project_folder(state: State<'_, AppState>) -> AppResult<()> {
-    let store = {
-        let cur = state.current_project.read().await;
-        cur.clone().ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
+pub async fn open_project_folder(
+    state: State<'_, AppState>,
+    slug: Option<String>,
+) -> AppResult<()> {
+    let target_slug = match slug {
+        Some(s) => s,
+        None => {
+            let cur = state.current_project.read().await;
+            let store = cur.clone().ok_or_else(|| {
+                AppError::InvalidInput("no project loaded".into())
+            })?;
+            store.project().await.slug
+        }
     };
-    let project = store.project().await;
-    let dir = state.projects_root.join(&project.slug);
+    let dir = state.projects_root.join(&target_slug);
+    if !dir.exists() {
+        return Err(AppError::ProjectNotFound(target_slug));
+    }
     #[cfg(target_os = "macos")]
     tokio::process::Command::new("open").arg(&dir).status().await
         .map_err(|e| AppError::Subprocess(e.to_string()))?;
+    #[cfg(target_os = "linux")]
+    tokio::process::Command::new("xdg-open").arg(&dir).status().await
+        .map_err(|e| AppError::Subprocess(e.to_string()))?;
+    #[cfg(target_os = "windows")]
+    tokio::process::Command::new("explorer").arg(&dir).status().await
+        .map_err(|e| AppError::Subprocess(e.to_string()))?;
     Ok(())
+}
+
+/// Permanently remove a project's folder from disk. If the project being
+/// deleted is the one currently loaded in memory, the in-memory state is also
+/// cleared so subsequent commands cannot mutate stale data.
+#[tauri::command]
+pub async fn project_delete(state: State<'_, AppState>, slug: String) -> AppResult<()> {
+    let dir = state.projects_root.join(&slug);
+    if !dir.exists() {
+        return Err(AppError::ProjectNotFound(slug));
+    }
+    {
+        let cur = state.current_project.read().await;
+        if let Some(s) = cur.clone() {
+            if s.project().await.slug == slug {
+                drop(cur);
+                *state.current_project.write().await = None;
+            }
+        }
+    }
+    tokio::fs::remove_dir_all(&dir).await?;
+    Ok(())
+}
+
+/// Compute the on-disk size (bytes) of a project folder, summing every file
+/// recursively. Returns 0 if the project folder doesn't exist (caller can
+/// treat that as "deleted").
+#[tauri::command]
+pub async fn project_size(state: State<'_, AppState>, slug: String) -> AppResult<u64> {
+    let dir = state.projects_root.join(&slug);
+    if !dir.exists() {
+        return Ok(0);
+    }
+    dir_size(dir).await
+}
+
+async fn dir_size(root: PathBuf) -> AppResult<u64> {
+    let mut total: u64 = 0;
+    let mut stack: Vec<PathBuf> = vec![root];
+    while let Some(p) = stack.pop() {
+        let mut entries = match tokio::fs::read_dir(&p).await {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        while let Some(entry) = entries.next_entry().await? {
+            let meta = match entry.metadata().await {
+                Ok(m) => m,
+                Err(_) => continue,
+            };
+            if meta.is_dir() {
+                stack.push(entry.path());
+            } else {
+                total += meta.len();
+            }
+        }
+    }
+    Ok(total)
 }
 
 use crate::toolchain_manager;
@@ -662,6 +859,20 @@ pub async fn ai_cli_status() -> AppResult<toolchain_manager::AiCliStatus> {
 pub async fn toolchain_bootstrap(state: State<'_, AppState>) -> AppResult<bool> {
     let bin_paths = state.bin_paths.read().await;
     Ok(!bin_paths.ytdlp.is_empty())
+}
+
+/// Resolve only when yt-dlp is ready. Polls `bin_paths.ytdlp` for up to ~10s
+/// and resolves `true` as soon as it's populated. Avoids a race where the
+/// `toolchain.ytdlp.ready` event is emitted before the frontend listener
+/// attaches and is therefore missed: the dashboard banner would otherwise stay
+/// stuck on "Preparazione downloader video…" even though yt-dlp is already
+/// installed.
+#[tauri::command]
+pub async fn toolchain_wait_ready(state: State<'_, AppState>) -> AppResult<bool> {
+    match await_ytdlp(&state).await {
+        Ok(_) => Ok(true),
+        Err(_) => Ok(false),
+    }
 }
 
 /// Aggregated state used by the frontend onboarding modal: whether settings
@@ -694,6 +905,21 @@ pub async fn first_run_status(app: AppHandle) -> AppResult<FirstRunStatus> {
         toolchain,
         ai_clis,
     })
+}
+
+/// Snapshot of recent WARN/ERROR log lines captured by the in-memory layer.
+/// Returned newest-first. `limit` defaults to 200 if `None`.
+#[tauri::command]
+pub async fn logs_get(limit: Option<usize>) -> AppResult<Vec<crate::log_capture::LogEntry>> {
+    Ok(crate::log_capture::snapshot(limit.unwrap_or(200)))
+}
+
+/// Clear the in-memory log buffer. Useful before reproducing an issue so the
+/// modal only shows the relevant tail.
+#[tauri::command]
+pub async fn logs_clear() -> AppResult<()> {
+    crate::log_capture::clear();
+    Ok(())
 }
 
 #[tauri::command]
@@ -735,5 +961,6 @@ pub fn build_state() -> AppState {
             font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),
         }),
         active_downloads: TokioMutex::new(HashMap::new()),
+        yt_cache: RwLock::new(HashMap::new()),
     }
 }

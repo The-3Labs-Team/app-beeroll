@@ -132,6 +132,8 @@ export function TimelineStrip({ points, currentIndex, onJump }: Props) {
           stateClass = "border-2 border-bee-ink bg-bee-yellow text-bee-ink";
         else if (p.status === "downloading")
           stateClass = "border-2 border-bee-ink bg-bee-yellow text-bee-ink";
+        else if (p.status === "error")
+          stateClass = "border-2 border-bee-ink bg-red-600 text-white hover:bg-red-700";
 
         const currentClass = isCurrent
           ? "shadow-bee-1 -translate-x-[1px] -translate-y-[1px] bg-bee-yellow"

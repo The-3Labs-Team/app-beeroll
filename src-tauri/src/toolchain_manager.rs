@@ -61,10 +61,25 @@ fn ytdlp_bin_dir(app: &AppHandle) -> AppResult<PathBuf> {
     Ok(dir)
 }
 
-/// Ensure yt-dlp is present in the per-user app data dir, downloading it on
-/// first run and refreshing it once per day. Returns the resolved local path
-/// and (best-effort) the running version string.
+/// Ensure yt-dlp is reachable. Order of preference:
+///   1. **PATH binary** (Homebrew, pip, system package) — typically a Python
+///      install that's 6-9× faster than the PyInstaller-frozen standalone on
+///      macOS (1.5s vs 12-15s per search). If a working `yt-dlp` is on PATH,
+///      we use it directly and skip the download entirely.
+///   2. **Self-installed standalone** in `<app_data_dir>/bin/yt-dlp`,
+///      downloaded from the GitHub release. Refreshed once per day. Used as
+///      a guaranteed fallback when nothing's on PATH (the app must work for
+///      users who don't already have yt-dlp installed).
 pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
+    if let Some(install) = which_ytdlp_install().await {
+        tracing::info!(
+            "yt-dlp found on PATH at {:?} (version {:?}) — preferring over standalone bundle",
+            install.path,
+            install.version
+        );
+        return Ok(install);
+    }
+
     let bin_dir = ytdlp_bin_dir(app)?;
     tokio::fs::create_dir_all(&bin_dir).await?;
 
@@ -96,6 +111,21 @@ pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
     Ok(YtdlpInstall {
         path: local_path,
         version,
+    })
+}
+
+/// Look up yt-dlp on PATH and verify it actually runs. Returns None when
+/// either `which` fails or `--version` exits with an error. We don't fall
+/// back to the standalone here — that's the caller's responsibility.
+async fn which_ytdlp_install() -> Option<YtdlpInstall> {
+    let path = which::which("yt-dlp").ok()?;
+    // Be paranoid: a `yt-dlp` on PATH that doesn't run isn't useful, fall
+    // through to the bundled binary instead. Treat any non-zero exit or I/O
+    // error as "not usable".
+    let version = ytdlp_version(&path).await.ok()?;
+    Some(YtdlpInstall {
+        path,
+        version: Some(version),
     })
 }
 

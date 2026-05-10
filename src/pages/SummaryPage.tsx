@@ -9,6 +9,7 @@ import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
 import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
+import { formatBytes } from "../lib/utils";
 
 const padded = (n: number) => String(n).padStart(2, "0");
 
@@ -16,10 +17,27 @@ export function SummaryPage() {
   const nav = useNavigate();
   const project = useStore((s) => s.project);
   const [exporting, setExporting] = useState<null | "edl" | "fcpxml">(null);
+  const [sizeBytes, setSizeBytes] = useState<number | null>(null);
 
   useEffect(() => {
     if (!project) nav("/projects", { replace: true });
   }, [project, nav]);
+
+  useEffect(() => {
+    if (!project) return;
+    let cancelled = false;
+    ipc
+      .projectSize(project.slug)
+      .then((b) => {
+        if (!cancelled) setSizeBytes(b);
+      })
+      .catch(() => {
+        if (!cancelled) setSizeBytes(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [project?.slug, project?.broll_points.length]);
 
   if (!project) return null;
 
@@ -79,10 +97,14 @@ export function SummaryPage() {
         <BeeMonoLabel as="div" className="mt-3 mb-6">
           {done.length} clip · {skipped.length} saltati ·{" "}
           {project.broll_points.length} punti totali
+          {sizeBytes != null && <> · {formatBytes(sizeBytes)} su disco</>}
         </BeeMonoLabel>
 
         <div className="flex flex-wrap gap-3 mb-8">
-          <BeeButton variant="primary" onClick={() => ipc.openProjectFolder()}>
+          <BeeButton
+            variant="primary"
+            onClick={() => ipc.openProjectFolder(project.slug)}
+          >
             Apri cartella
           </BeeButton>
           <BeeButton

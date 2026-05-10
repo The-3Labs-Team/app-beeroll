@@ -1,23 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { listen } from "@tauri-apps/api/event";
-import { ipc } from "../ipc";
+import { toast } from "sonner";
+import { events, ipc } from "../ipc";
 import { useStore } from "../store";
 import { BeeWindow } from "../components/BeeWindow";
 import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { ProjectFolderCard } from "../components/ProjectFolderCard";
 import { relativeTimeIt } from "../lib/utils";
 import type { Project } from "../types";
-
-function metaForProject(p: Project): string {
-  const when = relativeTimeIt(p.created_at);
-  const total = p.broll_points.length;
-  const done = p.broll_points.filter((b) => b.status === "done").length;
-  if (total === 0) return `${when} · bozza`;
-  if (done === total) return `${when} · ${done}/${total} pronto`;
-  return `${when} · ${done}/${total}`;
-}
 
 function lastActivityLabel(projects: Project[]): string {
   if (projects.length === 0) return "—";
@@ -29,18 +23,37 @@ export function ProjectsPage() {
   const nav = useNavigate();
   const setProject = useStore((s) => s.setProject);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [sizes, setSizes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [ytdlpReady, setYtdlpReady] = useState(false);
   const [ytdlpError, setYtdlpError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    ipc.projectList().then((p) => {
-      setProjects(p);
+  const loadProjects = () =>
+    ipc.projectList().then((list) => {
+      setProjects(list);
       setLoading(false);
+      // Fetch sizes in parallel; update each as it resolves so the UI doesn't
+      // wait on the slowest folder.
+      list.forEach((p) => {
+        ipc
+          .projectSize(p.slug)
+          .then((b) => setSizes((m) => ({ ...m, [p.slug]: b })))
+          .catch(() => {});
+      });
     });
 
-    ipc.toolchainBootstrap().then((ready) => {
+  useEffect(() => {
+    loadProjects();
+
+    // Wait deterministically for yt-dlp instead of relying on the
+    // `toolchain.ytdlp.ready` event: that event is emitted very early during
+    // app startup and is often missed by the listener registered below (Tauri
+    // events are fire-and-forget). The polling command resolves as soon as
+    // `bin_paths.ytdlp` is populated, with a 10s ceiling.
+    ipc.toolchainWaitReady().then((ready) => {
       if (ready) setYtdlpReady(true);
     });
 
@@ -52,16 +65,58 @@ export function ProjectsPage() {
       setYtdlpError(typeof e.payload === "string" ? e.payload : String(e.payload));
     });
 
+    // Subscribe to project.updated so the dashboard reflects backend state
+    // (download status, B-roll points) without forcing the user to navigate
+    // away and come back. Each event carries the full Project payload, so we
+    // just splice it into the existing list.
+    const offProjectUpdated = events.onProjectUpdated((updated) => {
+      setProjects((list) => {
+        const idx = list.findIndex((p) => p.slug === updated.slug);
+        if (idx === -1) return list;
+        const next = list.slice();
+        next[idx] = updated;
+        return next;
+      });
+    });
+
     return () => {
       offReady.then((f) => f());
       offError.then((f) => f());
+      offProjectUpdated.then((f) => f());
     };
   }, []);
 
   const open = async (slug: string) => {
     const p = await ipc.projectLoad(slug);
     setProject(p);
-    nav("/picker");
+    // If the project has no B-Roll points yet, the extraction pipeline either
+    // never started or was interrupted. Send the user to /review so the page
+    // resumes transcription/extraction and shows the WaitScreen — opening
+    // /picker for an empty project would crash with "Nessun punto B-Roll".
+    if (p.broll_points.length === 0) {
+      nav("/review");
+    } else {
+      nav("/picker");
+    }
+  };
+
+  const onConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    try {
+      await ipc.projectDelete(pendingDelete.slug);
+      toast.success(`Progetto "${pendingDelete.name}" eliminato`);
+      setProjects((list) => list.filter((p) => p.slug !== pendingDelete.slug));
+      setSizes((m) => {
+        const { [pendingDelete.slug]: _omit, ...rest } = m;
+        return rest;
+      });
+      setPendingDelete(null);
+    } catch (e) {
+      toast.error(`Eliminazione fallita: ${String(e)}`);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const filtered = useMemo(() => {
@@ -97,16 +152,15 @@ export function ProjectsPage() {
               <svg
                 width="18"
                 height="18"
-                viewBox="0 0 18 18"
+                viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
               >
-                <circle cx="9" cy="9" r="2.6" />
-                <path
-                  d="M9 1v2M9 15v2M1 9h2M15 9h2M3 3l1.5 1.5M13.5 13.5L15 15M3 15l1.5-1.5M13.5 4.5L15 3"
-                  strokeLinecap="round"
-                />
+                <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
             </BeeButton>
             <BeeButton variant="primary" onClick={() => nav("/import")}>
@@ -165,7 +219,7 @@ export function ProjectsPage() {
           </div>
         )}
 
-        {/* List */}
+        {/* Folder grid */}
         <div className="flex-1 overflow-y-auto bee-scroll">
           {loading ? (
             <BeeMonoLabel as="div" className="p-8">
@@ -186,47 +240,31 @@ export function ProjectsPage() {
               Nessun progetto corrisponde a "{query}"
             </BeeMonoLabel>
           ) : (
-            <ul className="m-0 p-0 list-none">
+            <div
+              className="px-7 pt-9 pb-6 grid gap-x-5 gap-y-7"
+              style={{
+                gridTemplateColumns:
+                  "repeat(auto-fill, minmax(220px, 1fr))",
+              }}
+            >
               {filtered.map((p, i) => (
-                <li
+                <ProjectFolderCard
                   key={p.slug}
-                  className="bee-row border-b-bee border-bee-ink grid items-stretch cursor-pointer bg-white text-bee-ink hover:bg-bee-yellow group"
-                  style={{ gridTemplateColumns: "88px 1fr auto auto" }}
-                  onClick={() => open(p.slug)}
-                >
-                  <div className="flex items-center justify-center font-mono text-[22px] font-bold border-r-bee border-bee-ink bg-bee-yellow text-bee-ink group-hover:bg-bee-ink group-hover:text-bee-yellow transition-[background,color] duration-100">
-                    {String(i + 1).padStart(2, "0")}
-                  </div>
-                  <div className="px-[22px] py-[18px] flex flex-col gap-1 justify-center min-w-0">
-                    <div className="text-[20px] font-semibold tracking-[-0.4px] leading-tight overflow-hidden text-ellipsis whitespace-nowrap">
-                      {p.name}
-                    </div>
-                    <BeeMonoLabel
-                      as="div"
-                      className="group-hover:text-bee-ink/70 transition-colors duration-100"
-                    >
-                      {metaForProject(p)}
-                    </BeeMonoLabel>
-                  </div>
-                  <div className="self-center px-[22px] font-mono text-[11px] font-bold tracking-[0.6px] uppercase whitespace-nowrap text-right">
-                    <b className="text-[14px]">{p.broll_points.length}</b> B-roll
-                  </div>
-                  <div className="self-stretch border-l-bee border-bee-ink w-[60px] flex items-center justify-center bg-white group-hover:bg-bee-ink group-hover:text-bee-yellow transition-[background,color] duration-100">
-                    <svg
-                      width="18"
-                      height="18"
-                      viewBox="0 0 18 18"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2.2"
-                      strokeLinecap="round"
-                    >
-                      <path d="M5 9h8M9 5l4 4-4 4" />
-                    </svg>
-                  </div>
-                </li>
+                  index={i + 1}
+                  project={p}
+                  sizeBytes={sizes[p.slug]}
+                  onOpen={() => open(p.slug)}
+                  onOpenFolder={() => {
+                    ipc
+                      .openProjectFolder(p.slug)
+                      .catch((err) =>
+                        toast.error(`Apertura fallita: ${String(err)}`),
+                      );
+                  }}
+                  onDelete={() => setPendingDelete(p)}
+                />
               ))}
-            </ul>
+            </div>
           )}
         </div>
 
@@ -259,6 +297,27 @@ export function ProjectsPage() {
           </div>
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        onOpenChange={(o) => {
+          if (!o) setPendingDelete(null);
+        }}
+        title="Eliminare il progetto?"
+        description={
+          pendingDelete && (
+            <>
+              Verrà rimossa permanentemente la cartella{" "}
+              <strong>{pendingDelete.name}</strong> con tutti i clip,
+              transcript e cache. L'operazione non è reversibile.
+            </>
+          )
+        }
+        confirmLabel="Elimina"
+        cancelLabel="Annulla"
+        danger
+        busy={deleting}
+        onConfirm={onConfirmDelete}
+      />
     </BeeWindow>
   );
 }

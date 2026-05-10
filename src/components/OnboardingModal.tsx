@@ -110,6 +110,8 @@ export function OnboardingModal({ onClose }: Props) {
       claude_cli_path: null,
       codex_cli_path: null,
       transcription_provider: transcriptionProvider,
+      model_preset: "balanced",
+      model_overrides: {},
     });
   };
 

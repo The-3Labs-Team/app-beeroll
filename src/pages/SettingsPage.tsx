@@ -4,6 +4,7 @@ import { ipc } from "../ipc";
 import type {
   AiCliStatus,
   AppSettings,
+  ModelPreset,
   ProviderId,
   TranscriptionProviderId,
 } from "../types";
@@ -11,6 +12,9 @@ import { BeeWindow } from "../components/BeeWindow";
 import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
+import { SponsorCard } from "../components/SponsorCard";
+import { YoutubeApiHowToDialog } from "../components/YoutubeApiHowToDialog";
+import logoUrl from "../assets/logo.png";
 
 type Status = "idle" | "saving" | "testing" | "ok" | "error";
 
@@ -39,6 +43,65 @@ const TRANSCRIPTION_PROVIDERS: TranscriptionOption[] = [
   { id: "openai_api", label: "OpenAI Whisper" },
 ];
 
+/**
+ * Mirrors `settings_store::preset_model_for` — keep in sync. The slider maps
+ * (preset, provider) → concrete model id. CLI providers don't appear here:
+ * they ride the CLI's own default and the preset is a no-op.
+ */
+const PRESET_MODEL_MAP: Record<
+  Exclude<ModelPreset, "custom">,
+  Partial<Record<ProviderId, string>>
+> = {
+  fast: {
+    anthropic_api: "claude-haiku-4-5",
+    openai_api: "gpt-4o-mini",
+    ollama: "llama3.2:3b",
+  },
+  balanced: {
+    anthropic_api: "claude-sonnet-4-6",
+    openai_api: "gpt-4o",
+    ollama: "llama3.1:8b",
+  },
+  accurate: {
+    anthropic_api: "claude-opus-4-7",
+    openai_api: "gpt-4o",
+    ollama: "llama3.1:70b",
+  },
+};
+
+/** Mirrors `settings_store::available_models_for`. */
+const AVAILABLE_MODELS: Partial<Record<ProviderId, string[]>> = {
+  anthropic_api: [
+    "claude-haiku-4-5",
+    "claude-sonnet-4-6",
+    "claude-opus-4-7",
+  ],
+  openai_api: ["gpt-4o-mini", "gpt-4o", "o1-mini"],
+  ollama: ["llama3.2:3b", "llama3.1:8b", "llama3.1:70b", "qwen2.5:14b", "mistral"],
+};
+
+const PRESET_LABEL: Record<Exclude<ModelPreset, "custom">, string> = {
+  fast: "Veloce",
+  balanced: "Bilanciato",
+  accurate: "Preciso",
+};
+
+const PRESET_DESCRIPTION: Record<Exclude<ModelPreset, "custom">, string> = {
+  fast: "Modelli più piccoli, risposta in pochi secondi. Adatto per audio brevi.",
+  balanced: "Compromesso tra velocità e qualità. Default consigliato.",
+  accurate: "Modelli più capaci, suggerimenti migliori ma più lenti e costosi.",
+};
+
+function resolveModelClient(
+  settings: AppSettings,
+  providerId: ProviderId,
+): string | null {
+  if (settings.model_preset === "custom") {
+    return settings.model_overrides[providerId] ?? null;
+  }
+  return PRESET_MODEL_MAP[settings.model_preset]?.[providerId] ?? null;
+}
+
 const beeInputClass =
   "w-full h-[46px] border-bee border-bee-ink bg-white px-3.5 font-mono text-[13px] font-medium text-bee-ink outline-none transition-shadow duration-75 focus:shadow-[5px_5px_0_#FFD60A] placeholder:text-bee-mute placeholder:font-normal";
 
@@ -53,6 +116,8 @@ export function SettingsPage() {
   const [status, setStatus] = useState<Status>("idle");
   const [err, setErr] = useState<string>("");
 
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
   const [pixabayKey, setPixabayKey] = useState("");
   const [pixabayBusy, setPixabayBusy] = useState<null | "saving" | "testing">(null);
   const [pixabayMsg, setPixabayMsg] = useState<{ kind: "idle" | "ok" | "err"; text: string }>({
@@ -65,6 +130,13 @@ export function SettingsPage() {
     kind: "idle",
     text: "",
   });
+  const [youtubeKey, setYoutubeKey] = useState("");
+  const [youtubeBusy, setYoutubeBusy] = useState<null | "saving" | "testing">(null);
+  const [youtubeMsg, setYoutubeMsg] = useState<{ kind: "idle" | "ok" | "err"; text: string }>({
+    kind: "idle",
+    text: "",
+  });
+  const [youtubeHowToOpen, setYoutubeHowToOpen] = useState(false);
 
   const savePixabay = async () => {
     if (!pixabayKey.trim()) {
@@ -85,6 +157,28 @@ export function SettingsPage() {
     } catch (e) {
       setPixabayBusy(null);
       setPixabayMsg({ kind: "err", text: String(e) });
+    }
+  };
+
+  const saveYoutube = async () => {
+    if (!youtubeKey.trim()) {
+      setYoutubeMsg({ kind: "err", text: "Inserisci la chiave" });
+      return;
+    }
+    setYoutubeBusy("saving");
+    try {
+      await ipc.settingsSetYoutubeKey(youtubeKey.trim());
+      setYoutubeBusy("testing");
+      const ok = await ipc.settingsTestYoutube();
+      setYoutubeBusy(null);
+      setYoutubeMsg(
+        ok
+          ? { kind: "ok", text: "Chiave salvata e verificata" }
+          : { kind: "err", text: "Test fallito (nessun risultato)" },
+      );
+    } catch (e) {
+      setYoutubeBusy(null);
+      setYoutubeMsg({ kind: "err", text: String(e) });
     }
   };
 
@@ -147,6 +241,13 @@ export function SettingsPage() {
     setSettings({ ...settings, ollama_base_url: v.trim() === "" ? null : v });
   const updateTranscriptionProvider = (id: TranscriptionProviderId) =>
     setSettings({ ...settings, transcription_provider: id });
+  const updatePreset = (preset: ModelPreset) =>
+    setSettings({ ...settings, model_preset: preset });
+  const updateModelOverride = (providerId: ProviderId, model: string) =>
+    setSettings({
+      ...settings,
+      model_overrides: { ...settings.model_overrides, [providerId]: model },
+    });
 
   const save = async () => {
     setStatus("saving");
@@ -274,7 +375,9 @@ export function SettingsPage() {
           <BeeHL>Impostazioni</BeeHL>
         </h1>
 
-        <section className="mt-8 flex flex-col gap-4">
+        <div className="flex gap-7 items-start mt-8 flex-wrap">
+          <div className="flex-1 min-w-[320px] max-w-[560px] flex flex-col">
+        <section className="flex flex-col gap-4">
           <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
             Provider AI
           </h2>
@@ -312,6 +415,166 @@ export function SettingsPage() {
               </label>
             ))}
           </div>
+
+          {/* Model preset slider — always rendered. Disabled with a help
+              line for CLI providers (they ignore the dial). */}
+          {(() => {
+            const supportsModel =
+              selected === "anthropic_api" ||
+              selected === "openai_api" ||
+              selected === "ollama";
+            const apiSelected = selected as ProviderId;
+            return (
+            <div className="mt-2 border-bee border-bee-ink bg-white p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div>
+                  <div className="font-bold text-[14px] tracking-[-0.2px]">
+                    Modello
+                  </div>
+                  <BeeMonoLabel
+                    as="div"
+                    className="normal-case tracking-normal text-[11px] mt-0.5 text-bee-ink/70"
+                  >
+                    Velocità ↔ precisione. Custom per scegliere a mano.
+                  </BeeMonoLabel>
+                </div>
+                {supportsModel && settings.model_preset !== "custom" && (
+                  <span className="font-mono text-[10.5px] font-bold tracking-[0.4px] uppercase bg-bee-ink text-bee-yellow px-2 py-1 whitespace-nowrap">
+                    {resolveModelClient(settings, apiSelected) ?? "—"}
+                  </span>
+                )}
+              </div>
+              {!supportsModel && (
+                <BeeMonoLabel
+                  as="p"
+                  className="normal-case tracking-normal text-[11px] mb-3 text-bee-ink/70 leading-[1.5]"
+                >
+                  Il provider <code className="bg-bee-ink text-bee-yellow px-1 py-0.5">{selected}</code>{" "}
+                  usa il modello configurato direttamente nel CLI. Lo slider qui
+                  sotto è quindi solo informativo.
+                </BeeMonoLabel>
+              )}
+
+              <div
+                className={`inline-flex border-bee border-bee-ink bg-white w-full ${
+                  supportsModel ? "" : "opacity-60"
+                }`}
+                role="tablist"
+                aria-label="Preset modello"
+              >
+                {(["fast", "balanced", "accurate"] as const).map((p, i, arr) => {
+                  const isActive = settings.model_preset === p;
+                  const isLast = i === arr.length - 1;
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      role="tab"
+                      aria-selected={isActive}
+                      disabled={!supportsModel}
+                      onClick={() => updatePreset(p)}
+                      title={PRESET_DESCRIPTION[p]}
+                      className={`flex-1 px-[18px] h-[42px] font-sans text-[13px] font-semibold transition-colors duration-100 ${
+                        isLast ? "" : "border-r-bee border-bee-ink"
+                      } ${
+                        isActive
+                          ? "bg-bee-ink text-bee-yellow"
+                          : "bg-transparent text-bee-ink hover:bg-bee-yellow"
+                      } disabled:cursor-not-allowed`}
+                    >
+                      {PRESET_LABEL[p]}
+                    </button>
+                  );
+                })}
+              </div>
+              <BeeMonoLabel
+                as="p"
+                className="normal-case tracking-normal text-[11px] mt-2.5 text-bee-ink/70 leading-[1.5]"
+              >
+                {settings.model_preset === "custom"
+                  ? "Modalità Custom: il modello è quello scelto qui sotto in Impostazioni avanzate."
+                  : PRESET_DESCRIPTION[settings.model_preset as Exclude<ModelPreset, "custom">]}
+              </BeeMonoLabel>
+
+              {/* Advanced — collapsible custom model picker */}
+              <button
+                type="button"
+                onClick={() => setAdvancedOpen((v) => !v)}
+                className="mt-3 inline-flex items-center gap-1.5 font-mono text-[11px] font-bold tracking-[0.5px] uppercase text-bee-ink/80 hover:text-bee-ink"
+              >
+                <span
+                  className="inline-block transition-transform duration-100"
+                  style={{
+                    transform: advancedOpen ? "rotate(90deg)" : "rotate(0deg)",
+                  }}
+                >
+                  ▶
+                </span>
+                Impostazioni avanzate
+              </button>
+
+              {advancedOpen && supportsModel && (
+                <div className="mt-3 border-t border-bee-ink/30 pt-3 flex flex-col gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.model_preset === "custom"}
+                        onChange={(e) =>
+                          updatePreset(e.target.checked ? "custom" : "balanced")
+                        }
+                        className="accent-bee-ink h-4 w-4"
+                      />
+                      <span className="font-bold text-[13px]">
+                        Scegli il modello manualmente
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <BeeMonoLabel as="label">
+                      Modello per {apiSelected.replace("_api", "")}
+                    </BeeMonoLabel>
+                    <select
+                      value={
+                        settings.model_preset === "custom"
+                          ? settings.model_overrides[apiSelected] ??
+                            (AVAILABLE_MODELS[apiSelected]?.[0] ?? "")
+                          : (resolveModelClient(settings, apiSelected) ?? "")
+                      }
+                      onChange={(e) =>
+                        updateModelOverride(apiSelected, e.target.value)
+                      }
+                      disabled={settings.model_preset !== "custom"}
+                      className={`h-[42px] border-bee border-bee-ink bg-white px-3 font-mono text-[13px] font-medium text-bee-ink outline-none focus:shadow-[3px_3px_0_#FFD60A] transition-shadow duration-75 ${
+                        settings.model_preset !== "custom"
+                          ? "opacity-60 cursor-not-allowed"
+                          : ""
+                      }`}
+                    >
+                      {(AVAILABLE_MODELS[apiSelected] ?? []).map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                    <BeeMonoLabel
+                      as="p"
+                      className="normal-case tracking-normal text-[10.5px] text-bee-ink/55 leading-[1.5]"
+                    >
+                      Lista non esaustiva. Per provider con modelli custom,
+                      modifica direttamente{" "}
+                      <code className="bg-bee-ink text-bee-yellow px-1 py-0.5">
+                        settings.json
+                      </code>
+                      .
+                    </BeeMonoLabel>
+                  </div>
+                </div>
+              )}
+            </div>
+            );
+          })()}
 
           <div className="flex items-center gap-3 flex-wrap mt-2">
             <BeeButton
@@ -395,8 +658,68 @@ export function SettingsPage() {
             Sorgenti video
           </h2>
           <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
-            YouTube è sempre attivo. Aggiungi Pixabay/Pexels per stock footage.
+            YouTube è sempre attivo. Aggiungi una chiave YouTube per ricerche
+            5-10× più veloci, e/o Pixabay/Pexels per stock footage.
           </BeeMonoLabel>
+
+          {/* YouTube Data API v3 */}
+          <div className="border-bee border-bee-ink p-4 bg-white">
+            <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="font-mono text-[10px] font-bold tracking-[0.4px] uppercase bg-[#FF0000] text-white px-2 py-1">
+                  YT
+                </span>
+                <h3 className="font-bold text-[15px]">YouTube Data API v3</h3>
+                <span className="font-mono text-[10px] font-bold tracking-[0.5px] uppercase border-2 border-bee-ink px-1.5 py-0.5 bg-bee-yellow text-bee-ink">
+                  consigliato
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setYoutubeHowToOpen(true)}
+                className="font-mono text-[10.5px] font-bold tracking-[0.5px] uppercase border-2 border-bee-ink bg-white px-2 py-1 hover:bg-bee-yellow"
+              >
+                Come ottenerla?
+              </button>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                placeholder="API key YouTube (AIza…)"
+                value={youtubeKey}
+                onChange={(e) => setYoutubeKey(e.target.value)}
+                className={`flex-1 ${beeInputClass}`}
+              />
+              <BeeButton
+                variant="primary"
+                onClick={saveYoutube}
+                disabled={youtubeBusy !== null}
+              >
+                {youtubeBusy === "saving"
+                  ? "Salvo…"
+                  : youtubeBusy === "testing"
+                  ? "Testo…"
+                  : "Salva e testa"}
+              </BeeButton>
+            </div>
+            {youtubeMsg.kind === "ok" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-green-700">
+                ✓ {youtubeMsg.text}
+              </p>
+            )}
+            {youtubeMsg.kind === "err" && (
+              <p className="mt-2 font-mono text-[11px] font-bold tracking-[0.4px] uppercase text-red-700">
+                ! {youtubeMsg.text}
+              </p>
+            )}
+            <BeeMonoLabel
+              as="p"
+              className="normal-case tracking-normal text-[11px] mt-2 text-bee-ink/65 leading-[1.5]"
+            >
+              Senza chiave la ricerca usa <code className="bg-bee-ink text-bee-yellow px-1 py-0.5">yt-dlp</code>
+              , che è più lento (1.5-15s vs 200ms con la API).
+            </BeeMonoLabel>
+          </div>
 
           {/* Pixabay */}
           <div className="border-bee border-bee-ink p-4 bg-white">
@@ -488,7 +811,31 @@ export function SettingsPage() {
             )}
           </div>
         </section>
+          </div>
+          <div className="flex flex-col gap-5 items-stretch">
+            <div className="w-full max-w-[260px] border-bee border-bee-ink bg-white shadow-bee-2 p-5 flex flex-col items-center gap-2">
+              <img
+                src={logoUrl}
+                alt="BeeRoll"
+                width={140}
+                height={140}
+                className="w-[140px] h-[140px] object-contain"
+              />
+              <BeeMonoLabel
+                as="div"
+                className="text-[10px] tracking-[0.6px]"
+              >
+                BeeRoll · v0.1.0
+              </BeeMonoLabel>
+            </div>
+            <SponsorCard />
+          </div>
+        </div>
       </div>
+      <YoutubeApiHowToDialog
+        open={youtubeHowToOpen}
+        onOpenChange={setYoutubeHowToOpen}
+      />
     </BeeWindow>
   );
 }

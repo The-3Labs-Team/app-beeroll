@@ -118,7 +118,7 @@
   display: none;
 }
 
-/* Highlight wrapper for headings — yellow chunk with hard black drop shadow */
+/* Highlight wrapper for headings — yellow chunk, flat (no shadow) */
 .bee-hl {
   background: var(--bee-y);
   color: var(--bee-y-ink);
@@ -156,3 +156,23 @@
 [data-sonner-toaster] {
   font-family: "Space Grotesk", sans-serif;
 }
+
+/* Brutalist spinner: hard-step rotation (no easing) for an arcade feel */
+@keyframes bee-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+.bee-spin {
+  animation: bee-spin 1.2s steps(8, end) infinite;
+}
+
+/* Subtle pulsing dots for "still working" reassurance */
+@keyframes bee-pulse-dot {
+  0%, 60%, 100% { opacity: 0.25; }
+  30% { opacity: 1; }
+}
+.bee-pulse-dot {
+  animation: bee-pulse-dot 1.4s ease-in-out infinite;
+}
+.bee-pulse-dot.delay-1 { animation-delay: 0.18s; }
+.bee-pulse-dot.delay-2 { animation-delay: 0.36s; }

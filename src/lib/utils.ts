@@ -63,3 +63,22 @@ export function formatEtaIt(sec: number | null | undefined): string {
   const s = sec % 60;
   return s > 0 ? `${m}m ${s}s` : `${m}m`;
 }
+
+/**
+ * Format a byte count using binary multiples (KiB → MiB → GiB) but display
+ * with the friendlier KB/MB/GB labels — matches what Finder/Explorer show on
+ * project folders. Returns "—" for negative values.
+ */
+export function formatBytes(bytes: number): string {
+  if (!isFinite(bytes) || bytes < 0) return "—";
+  if (bytes === 0) return "0 KB";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit++;
+  }
+  const decimals = unit <= 1 ? 0 : value < 10 ? 1 : 0;
+  return `${value.toFixed(decimals)} ${units[unit]}`;
+}

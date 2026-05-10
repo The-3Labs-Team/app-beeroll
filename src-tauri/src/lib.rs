@@ -12,16 +12,21 @@ pub mod stock_downloader;
 pub mod toolchain_manager;
 pub mod export;
 pub mod commands;
+pub mod log_capture;
 
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
-        )
+    use tracing_subscriber::layer::SubscriberExt;
+    use tracing_subscriber::util::SubscriberInitExt;
+
+    let env_filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| "info".into());
+    let _ = tracing_subscriber::registry()
+        .with(env_filter)
+        .with(tracing_subscriber::fmt::layer())
+        .with(crate::log_capture::CaptureLayer)
         .try_init();
 
     use crate::commands::*;
@@ -74,13 +79,17 @@ pub fn run() {
             project_create,
             project_load,
             project_list,
+            project_delete,
+            project_size,
             settings_set_anthropic_key,
             settings_set_openai_key,
             settings_set_groq_key,
             settings_set_pixabay_key,
             settings_set_pexels_key,
+            settings_set_youtube_key,
             settings_test_pixabay,
             settings_test_pexels,
+            settings_test_youtube,
             settings_test_anthropic,
             settings_test_provider,
             settings_load,
@@ -88,16 +97,20 @@ pub fn run() {
             extraction_run,
             transcription_run,
             search_run,
+            search_run_extras,
             pick_video,
             cancel_download,
             skip_point,
             open_project_folder,
             toolchain_status,
             toolchain_bootstrap,
+            toolchain_wait_ready,
             ai_cli_status,
             first_run_status,
             export_edl,
             export_fcpxml,
+            logs_get,
+            logs_clear,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

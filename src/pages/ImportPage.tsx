@@ -7,6 +7,7 @@ import { BeeWindow } from "../components/BeeWindow";
 import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
+import { WaitScreen } from "../components/WaitScreen";
 
 type InputMode = "audio" | "text";
 
@@ -72,6 +73,7 @@ export function ImportPage() {
   const audioFilename = audioPath.split(/[\\/]/).pop() ?? "";
 
   return (
+    <>
     <BeeWindow title="BeeRoll · Nuovo progetto" className="w-[880px] max-w-full h-[660px]">
       <div className="flex-1 overflow-y-auto bee-scroll px-9 pt-6 pb-9">
         <BeeButton variant="back" onClick={() => nav("/projects")}>
@@ -244,5 +246,43 @@ export function ImportPage() {
         </div>
       </div>
     </BeeWindow>
+    {busy && (
+      <WaitScreen
+        overlay
+        title={
+          mode === "audio"
+            ? "Importazione audio"
+            : "Creazione progetto"
+        }
+        subtitle={
+          mode === "audio"
+            ? "Sto copiando il file audio nel progetto. Per file grandi può richiedere qualche secondo."
+            : "Sto salvando la trascrizione e preparando il progetto."
+        }
+        steps={
+          mode === "audio"
+            ? [
+                {
+                  id: "copy",
+                  label: "Copia file audio",
+                  state: "active",
+                },
+                {
+                  id: "scaffold",
+                  label: "Creazione cartella progetto",
+                  state: "pending",
+                },
+              ]
+            : [
+                {
+                  id: "scaffold",
+                  label: "Salvataggio trascrizione",
+                  state: "active",
+                },
+              ]
+        }
+      />
+    )}
+    </>
   );
 }

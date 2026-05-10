@@ -52,6 +52,8 @@ export type ProviderId =
 
 export type TranscriptionProviderId = "groq_api" | "openai_api";
 
+export type ModelPreset = "fast" | "balanced" | "accurate" | "custom";
+
 export interface AppSettings {
   selected_provider: ProviderId;
   anthropic_model: string;
@@ -59,6 +61,9 @@ export interface AppSettings {
   claude_cli_path: string | null;
   codex_cli_path: string | null;
   transcription_provider: TranscriptionProviderId;
+  model_preset: ModelPreset;
+  /** Per-provider model id used when `model_preset === "custom"`. */
+  model_overrides: Record<string, string>;
 }
 
 export interface TranscriptionResult {
@@ -99,4 +104,11 @@ export interface FirstRunStatus {
   has_groq_key: boolean;
   toolchain: ToolchainStatus;
   ai_clis: AiCliStatus;
+}
+
+export interface LogEntry {
+  time: string;
+  level: string;
+  target: string;
+  message: string;
 }

@@ -9,11 +9,20 @@ import { VideoGrid } from "../components/VideoGrid";
 import { PreviewPane } from "../components/PreviewPane";
 import { TimelineStrip } from "../components/TimelineStrip";
 import { PointStatusBar } from "../components/PointStatusBar";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import {
+  FilterDialog,
+  applyFilters,
+  isFilterActive,
+  DEFAULT_FILTERS,
+  type PickerFilters,
+} from "../components/FilterDialog";
 import type { VideoCandidate } from "../types";
 
 export function PickerPage() {
   const nav = useNavigate();
   const project = useStore((s) => s.project);
+  const setProject = useStore((s) => s.setProject);
   const currentIndex = useStore((s) => s.currentIndex);
   const setCurrentIndex = useStore((s) => s.setCurrentIndex);
   const searchResults = useStore((s) => s.searchResults);
@@ -23,6 +32,9 @@ export function PickerPage() {
   const [selected, setSelected] = useState<VideoCandidate | null>(null);
   const [searchErr, setSearchErr] = useState("");
   const [editedKeywords, setEditedKeywords] = useState<Record<string, string>>({});
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filters, setFilters] = useState<PickerFilters>(DEFAULT_FILTERS);
 
   const point = project?.broll_points[currentIndex];
   const activeKeyword = point ? (editedKeywords[point.id] ?? point.active_keyword) : "";
@@ -55,7 +67,10 @@ export function PickerPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point?.id, activeKeyword]);
 
-  // Prefetch search for the next 2 points
+  // Prefetch search for the next 2 points. We only prefetch YouTube here
+  // (the slow source) so the main bandwidth budget goes to the active point;
+  // stock extras for the prefetched points are fetched lazily when the user
+  // actually navigates to them.
   useEffect(() => {
     if (!project) return;
     const PREFETCH_COUNT = 2;
@@ -87,11 +102,61 @@ export function PickerPage() {
     };
   }, []);
 
+  // Polling fallback for timeline freshness. The backend already emits
+  // `project.updated` after every status transition, but there have been
+  // reports of those events not landing in time (the listener attaches a tick
+  // late, or the bridge drops a payload). Rather than chase the race, we
+  // simply re-fetch the project every 1.5s while at least one point is
+  // actively downloading, and stop the moment everything has either
+  // completed or errored. Cost is one IPC call per tick; well under the
+  // bandwidth budget.
+  const hasActiveWork = project?.broll_points.some(
+    (p) =>
+      p.status === "downloading" ||
+      p.status === "paused" ||
+      p.status === "searching" ||
+      p.status === "picking",
+  ) ?? false;
+
+  useEffect(() => {
+    if (!project || !hasActiveWork) return;
+    const slug = project.slug;
+    let cancelled = false;
+    const interval = window.setInterval(async () => {
+      try {
+        const fresh = await ipc.projectLoad(slug);
+        if (!cancelled) setProject(fresh);
+      } catch (e) {
+        console.warn("polling refresh failed:", e);
+      }
+    }, 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasActiveWork, project?.slug]);
+
   const runSearch = async (kw: string, pointId: string) => {
     setSearchErr("");
     try {
-      const results = await ipc.searchRun(kw);
-      setSearchResults(pointId, results);
+      // Phase 1: YouTube only — render as soon as it returns (~2s) so the user
+      // sees something fast.
+      const ytResults = await ipc.searchRun(kw);
+      setSearchResults(pointId, ytResults);
+
+      // Phase 2: stock providers in the background. They append to the YouTube
+      // results without blocking the initial render. Failures are silent — the
+      // user still has YouTube candidates to pick from.
+      ipc
+        .searchRunExtras(kw)
+        .then((extras) => {
+          if (extras.length === 0) return;
+          setSearchResults(pointId, [...ytResults, ...extras]);
+        })
+        .catch((e) =>
+          console.warn("stock extras search failed for point", pointId, e),
+        );
     } catch (e) {
       setSearchErr(String(e));
     }
@@ -187,7 +252,8 @@ export function PickerPage() {
     );
   }
 
-  const results = searchResults[point.id] || [];
+  const rawResults = searchResults[point.id] || [];
+  const results = applyFilters(rawResults, filters);
   const previewCandidate = locked ? point.selected_video : selected;
 
   return (
@@ -203,9 +269,35 @@ export function PickerPage() {
         total={project.broll_points.length}
         onPrev={goPrev}
         onSkip={skipCurrent}
+        onFinish={() => setConfirmFinish(true)}
+        onFilter={() => setFilterOpen(true)}
+        filterActive={isFilterActive(filters)}
         onChange={onChangeKeyword}
         onHome={() => nav("/projects")}
         disabled={locked}
+      />
+      <FilterDialog
+        open={filterOpen}
+        onOpenChange={setFilterOpen}
+        filters={filters}
+        onChange={setFilters}
+      />
+      <ConfirmDialog
+        open={confirmFinish}
+        onOpenChange={setConfirmFinish}
+        title="Terminare il progetto?"
+        description={
+          <>
+            Vai al riepilogo finale: clip pronte, statistiche e link alla
+            cartella. I download in corso non vengono interrotti.
+          </>
+        }
+        confirmLabel="Sì, vai al riepilogo"
+        cancelLabel="Annulla"
+        onConfirm={() => {
+          setConfirmFinish(false);
+          nav("/summary");
+        }}
       />
       <PointStatusBar point={point} download={downloads[point.id]} />
       <main className="flex flex-1 overflow-hidden min-h-0" style={{ display: "grid", gridTemplateColumns: "1fr 380px" }}>

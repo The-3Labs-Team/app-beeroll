@@ -9,7 +9,7 @@ interface Props {
 
 /**
  * Yellow highlight wrapper for headings — used inside h1/h2 to emphasise
- * a single word with a brutalist drop shadow + slight rotation.
+ * a single word with a flat yellow chunk.
  */
 export function BeeHL({ children, className = "", size = "lg" }: Props) {
   const cls = size === "lg" ? "bee-hl" : "bee-hl-sm";

@@ -1,10 +1,10 @@
 use crate::error::{AppError, AppResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
 use std::process::Stdio;
-use tokio::sync::Notify;
+use tokio::sync::{Mutex as TokioMutex, Notify};
 
 pub struct DownloadManager {
     ytdlp_path: String,
@@ -49,12 +49,35 @@ impl DownloadManager {
         tokio::fs::create_dir_all(output_dir).await?;
         let output_template = output_dir.join("%(id)s.%(ext)s");
 
+        let start = std::time::Instant::now();
+        tracing::info!(url = %url, "yt-dlp download start");
+
         let mut child = Command::new(&self.ytdlp_path)
             .args([
                 "--newline",
                 "--no-warnings",
                 "--continue",
-                "-f", "best[ext=mp4][height<=720]/best[ext=mp4]/best",
+                // Ladder, *least likely to 403* first. YouTube tends to
+                // block adaptive streams (separate `bestvideo` + `bestaudio`)
+                // for unauthenticated residential IPs, returning 403 on the
+                // first GET of the video fragment. Progressive single-stream
+                // formats (the legacy "18" / "22" itags up to 720p) are
+                // served from the same CDN as the watch page and almost
+                // always pass through. We try those first, then fall back to
+                // adaptive + ffmpeg merge as a last resort.
+                "-f",
+                "best[height<=720][ext=mp4]/best[height<=720]/best[ext=mp4]/bestvideo[height<=720]+bestaudio/best",
+                "--merge-output-format", "mp4",
+                // Try multiple YouTube player clients in order so a 403 from
+                // one falls through to the next. `tv_simply` and `android`
+                // tend to bypass the most aggressive PO-token checks.
+                "--extractor-args",
+                "youtube:player_client=default,tv_simply,android,web_safari",
+                // Be polite under rate-limit / transient network errors —
+                // a single retry usually clears a sporadic 403.
+                "-R", "5",
+                "--fragment-retries", "5",
+                "--retry-sleep", "fragment:exp=1:20",
                 "-o", output_template.to_string_lossy().as_ref(),
                 "--print", "after_move:filepath",
                 url,
@@ -66,8 +89,22 @@ impl DownloadManager {
             .map_err(|e| AppError::Subprocess(format!("yt-dlp spawn: {e}")))?;
 
         let stdout = child.stdout.take().unwrap();
+        let stderr_pipe = child.stderr.take().unwrap();
         let mut reader = BufReader::new(stdout).lines();
         let mut filepath: Option<PathBuf> = None;
+
+        // Drain stderr in a parallel task so the OS pipe buffer never fills
+        // up (which would deadlock yt-dlp). On failure we surface the last
+        // few lines as the error message — turns "exit status 1" into a
+        // useful explanation like "Requested format not available".
+        let stderr_buf: Arc<TokioMutex<String>> = Arc::new(TokioMutex::new(String::new()));
+        let stderr_buf_clone = stderr_buf.clone();
+        let stderr_task = tokio::spawn(async move {
+            let mut buf = String::new();
+            let mut r = BufReader::new(stderr_pipe);
+            let _ = r.read_to_string(&mut buf).await;
+            *stderr_buf_clone.lock().await = buf;
+        });
 
         // Race the read loop against the cancel signal. `biased` ensures the
         // cancel branch is polled first on each select iteration, so a
@@ -75,9 +112,20 @@ impl DownloadManager {
         // promptly. We can't borrow `child` inside the async block (it would
         // overlap with the post-loop `child.wait()`), so the loop only owns
         // `reader` and `on_progress`.
+        //
+        // We also info-log every ~25% of progress so the user can see in the
+        // Cmd+L modal that the download is moving without us flooding the
+        // buffer with the per-line yt-dlp output (which arrives several
+        // times a second during merge).
+        let mut last_logged_pct: i32 = -1;
         let read_loop = async {
             while let Some(line) = reader.next_line().await? {
                 if let Some(p) = parse_progress(&line) {
+                    let pct = p.percent as i32;
+                    if pct >= last_logged_pct + 25 {
+                        tracing::info!(percent = pct, "yt-dlp download progress");
+                        last_logged_pct = pct;
+                    }
                     on_progress(p);
                 } else if line.trim().ends_with(".mp4") || line.trim().ends_with(".mkv") || line.trim().ends_with(".webm") {
                     filepath = Some(PathBuf::from(line.trim()));
@@ -91,6 +139,7 @@ impl DownloadManager {
             _ = cancel.notified() => {
                 let _ = child.kill().await;
                 let _ = child.wait().await;
+                let _ = stderr_task.await;
                 return Err(AppError::Subprocess("download cancelled".into()));
             }
             res = read_loop => {
@@ -99,11 +148,54 @@ impl DownloadManager {
         }
 
         let status = child.wait().await?;
+        let _ = stderr_task.await;
+
+        let elapsed_ms = start.elapsed().as_millis() as u64;
+
         if !status.success() {
-            return Err(AppError::Subprocess(format!("yt-dlp exited with {status}")));
+            let stderr_text = stderr_buf.lock().await.clone();
+            // Trim and pick the most informative tail lines — yt-dlp prints
+            // a banner of dependency info before the actual error, and the
+            // last non-empty lines are usually the "ERROR: ..." message.
+            let summary: String = stderr_text
+                .lines()
+                .map(|l| l.trim())
+                .filter(|l| !l.is_empty())
+                .rev()
+                .take(3)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect::<Vec<_>>()
+                .join(" / ");
+            let suffix = if summary.is_empty() {
+                String::new()
+            } else {
+                format!(" — {summary}")
+            };
+            tracing::warn!(
+                elapsed_ms,
+                status = %status,
+                "yt-dlp download failed"
+            );
+            return Err(AppError::Subprocess(format!(
+                "yt-dlp exited with {status}{suffix}"
+            )));
         }
 
-        filepath.ok_or_else(|| AppError::Subprocess("yt-dlp did not print filepath".into()))
+        let resolved = filepath
+            .ok_or_else(|| AppError::Subprocess("yt-dlp did not print filepath".into()))?;
+        let size_kb = tokio::fs::metadata(&resolved)
+            .await
+            .map(|m| m.len() / 1024)
+            .unwrap_or(0);
+        tracing::info!(
+            elapsed_ms,
+            size_kb,
+            file = %resolved.display(),
+            "yt-dlp download done"
+        );
+        Ok(resolved)
     }
 }
 

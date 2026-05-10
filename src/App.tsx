@@ -9,12 +9,14 @@ import { ReviewPage } from "./pages/ReviewPage";
 import { PickerPage } from "./pages/PickerPage";
 import { SummaryPage } from "./pages/SummaryPage";
 import { OnboardingModal } from "./components/OnboardingModal";
+import { LogsDialog } from "./components/LogsDialog";
 import { Toaster } from "./components/ui/sonner";
 
 export default function App() {
   const setProject = useStore((s) => s.setProject);
   const setDownloadProgress = useStore((s) => s.setDownloadProgress);
   const [needsOnboarding, setNeedsOnboarding] = useState<boolean>(false);
+  const [logsOpen, setLogsOpen] = useState(false);
 
   useEffect(() => {
     let off1: (() => void) | undefined;
@@ -40,6 +42,21 @@ export default function App() {
       .catch(() => setNeedsOnboarding(false));
   }, []);
 
+  // Global hotkey: Cmd+L (Mac) / Ctrl+L (other) toggles the logs modal. The
+  // shortcut is harmless inside the Tauri webview (no browser address bar to
+  // intercept) so we don't need a more exotic combo.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const cmd = e.metaKey || e.ctrlKey;
+      if (cmd && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "l") {
+        e.preventDefault();
+        setLogsOpen((o) => !o);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <>
       {needsOnboarding && (
@@ -57,6 +74,7 @@ export default function App() {
         </Routes>
         <Toaster />
       </BrowserRouter>
+      <LogsDialog open={logsOpen} onOpenChange={setLogsOpen} />
     </>
   );
 }

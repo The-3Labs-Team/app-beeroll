@@ -1,6 +1,7 @@
 import type { VideoCandidate, BRollStatus } from "../types";
 import { useStore } from "../store";
 import { formatDuration } from "../lib/utils";
+import { HoverThumb } from "./HoverThumb";
 
 const SOURCE_BADGE: Record<string, { label: string; bg: string }> = {
   youtube: { label: "YT", bg: "bg-[#FF0000] text-white" },
@@ -76,13 +77,11 @@ export function VideoGrid({
             disabled={disabled}
             className={`text-left border-bee border-bee-ink bg-white cursor-pointer flex flex-col transition-[transform,box-shadow] duration-75 hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-bee-2 ${stateClass}`}
           >
-            <div
+            <HoverThumb
+              staticUrl={thumbUrl}
+              videoId={r.video_id}
+              enabled={r.source === "youtube"}
               className="aspect-video border-b-bee border-bee-ink relative overflow-hidden flex items-end p-2 text-white bg-bee-ink"
-              style={{
-                backgroundImage: `url(${thumbUrl})`,
-                backgroundSize: "cover",
-                backgroundPosition: "center",
-              }}
             >
               <span className="absolute top-1.5 left-1.5 w-[26px] h-[26px] bg-bee-ink text-bee-yellow font-mono text-[13px] font-bold flex items-center justify-center border-2 border-bee-yellow">
                 {i + 1}
@@ -122,7 +121,7 @@ export function VideoGrid({
                   ✓
                 </span>
               )}
-            </div>
+            </HoverThumb>
             <div className="px-3 py-2.5 flex flex-col gap-1">
               <p className="text-[13px] font-semibold leading-[1.3] line-clamp-2 m-0">
                 {r.title}

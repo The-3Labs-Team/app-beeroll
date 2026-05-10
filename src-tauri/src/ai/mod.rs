@@ -24,6 +24,10 @@ pub struct ProviderConfig {
     pub ollama_base_url: Option<String>,
     pub claude_cli_path: Option<String>,
     pub codex_cli_path: Option<String>,
+    /// Optional model id override. When `Some`, providers that support a
+    /// `with_model` setter (Anthropic, OpenAI, Ollama) use it instead of
+    /// their built-in default. CLI providers ignore this.
+    pub model: Option<String>,
 }
 
 const OLLAMA_DEFAULT_BASE_URL: &str = "http://localhost:11434";
@@ -49,21 +53,33 @@ pub fn create_provider(
                 .anthropic_key
                 .clone()
                 .ok_or_else(|| missing("anthropic_key", provider_id))?;
-            Ok(Arc::new(anthropic::AnthropicProvider::new(key)))
+            let mut p = anthropic::AnthropicProvider::new(key);
+            if let Some(m) = &config.model {
+                p = p.with_model(m.clone());
+            }
+            Ok(Arc::new(p))
         }
         "openai_api" => {
             let key = config
                 .openai_key
                 .clone()
                 .ok_or_else(|| missing("openai_key", provider_id))?;
-            Ok(Arc::new(openai::OpenAIProvider::new(key)))
+            let mut p = openai::OpenAIProvider::new(key);
+            if let Some(m) = &config.model {
+                p = p.with_model(m.clone());
+            }
+            Ok(Arc::new(p))
         }
         "ollama" => {
             let base = config
                 .ollama_base_url
                 .clone()
                 .unwrap_or_else(|| OLLAMA_DEFAULT_BASE_URL.into());
-            Ok(Arc::new(ollama::OllamaProvider::new(base)))
+            let mut p = ollama::OllamaProvider::new(base);
+            if let Some(m) = &config.model {
+                p = p.with_model(m.clone());
+            }
+            Ok(Arc::new(p))
         }
         "claude_cli" => {
             let provider = match &config.claude_cli_path {

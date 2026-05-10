@@ -4,10 +4,12 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 pub mod youtube;
+pub mod youtube_api;
 pub mod pixabay;
 pub mod pexels;
 
 pub use youtube::YouTubeSource;
+pub use youtube_api::YouTubeApiSource;
 pub use pixabay::PixabaySource;
 pub use pexels::PexelsSource;
 

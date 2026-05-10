@@ -42,6 +42,18 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "html", "lcov"],
+      reportsDirectory: "./coverage",
+      all: true,
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/test-setup.ts",
+        "src/vite-env.d.ts",
+      ],
+    },
     // E2E specs use @wdio/globals which only works inside the wdio runner.
     // Exclude them so `vitest run` doesn't try to execute them.
     exclude: ["**/node_modules/**", "**/dist/**", "e2e/**", "e2e-pw/**"],

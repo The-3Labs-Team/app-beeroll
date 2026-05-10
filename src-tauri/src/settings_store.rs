@@ -1,5 +1,6 @@
 use crate::error::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 const KEYRING_SERVICE: &str = "video-broll";
@@ -8,10 +9,60 @@ const KEYRING_USER_OPENAI: &str = "openai_api_key";
 const KEYRING_USER_GROQ: &str = "groq_api_key";
 const KEYRING_USER_PIXABAY: &str = "pixabay_api_key";
 const KEYRING_USER_PEXELS: &str = "pexels_api_key";
+const KEYRING_USER_YOUTUBE: &str = "youtube_api_key";
 
 const DEFAULT_PROVIDER: &str = "anthropic_api";
 const DEFAULT_ANTHROPIC_MODEL: &str = "claude-sonnet-4-6";
 const DEFAULT_TRANSCRIPTION_PROVIDER: &str = "groq_api";
+const DEFAULT_MODEL_PRESET: &str = "balanced";
+
+/// Map a (preset, provider) tuple to a concrete model id. Returns `None` for
+/// providers that don't have a meaningful model dial (CLI providers ride the
+/// CLI's own default; preset is a no-op there).
+///
+/// Anthropic models follow the 4.x family; OpenAI follows the 4o family;
+/// Ollama uses sizes that are reasonable on a developer laptop. Tweak by
+/// editing here — the UI dropdowns derive from `available_models_for`.
+pub fn preset_model_for(preset: &str, provider_id: &str) -> Option<&'static str> {
+    match (preset, provider_id) {
+        ("fast", "anthropic_api") => Some("claude-haiku-4-5"),
+        ("balanced", "anthropic_api") => Some("claude-sonnet-4-6"),
+        ("accurate", "anthropic_api") => Some("claude-opus-4-7"),
+
+        ("fast", "openai_api") => Some("gpt-4o-mini"),
+        ("balanced", "openai_api") => Some("gpt-4o"),
+        ("accurate", "openai_api") => Some("gpt-4o"),
+
+        ("fast", "ollama") => Some("llama3.2:3b"),
+        ("balanced", "ollama") => Some("llama3.1:8b"),
+        ("accurate", "ollama") => Some("llama3.1:70b"),
+
+        // CLI providers ignore the preset.
+        _ => None,
+    }
+}
+
+/// All known models for the given provider — used to populate the advanced
+/// dropdown. The first entry is treated as the default. Order is
+/// fast→balanced→accurate so it matches the slider on screen.
+pub fn available_models_for(provider_id: &str) -> &'static [&'static str] {
+    match provider_id {
+        "anthropic_api" => &[
+            "claude-haiku-4-5",
+            "claude-sonnet-4-6",
+            "claude-opus-4-7",
+        ],
+        "openai_api" => &["gpt-4o-mini", "gpt-4o", "o1-mini"],
+        "ollama" => &[
+            "llama3.2:3b",
+            "llama3.1:8b",
+            "llama3.1:70b",
+            "qwen2.5:14b",
+            "mistral",
+        ],
+        _ => &[],
+    }
+}
 
 /// Persisted, non-secret application settings. Secrets live in the keyring.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
@@ -19,8 +70,9 @@ pub struct AppSettings {
     /// Identifier of the AI provider to use. One of `anthropic_api`,
     /// `openai_api`, `ollama`, `claude_cli`, `codex_cli`.
     pub selected_provider: String,
-    /// Legacy field kept for backwards compatibility; the existing
-    /// `AnthropicProvider` ignores it and uses its built-in default.
+    /// Legacy field kept for backwards compatibility with older config files.
+    /// New code reads `model_preset` + `model_overrides` instead.
+    #[serde(default = "default_anthropic_model")]
     pub anthropic_model: String,
     /// Optional override for the Ollama daemon base URL.
     pub ollama_base_url: Option<String>,
@@ -34,10 +86,39 @@ pub struct AppSettings {
     /// `openai_api`. Defaults to `groq_api`.
     #[serde(default = "default_transcription_provider")]
     pub transcription_provider: String,
+    /// Preset selector for the AI model: `fast`, `balanced`, `accurate`, or
+    /// `custom`. When set to `custom`, the per-provider entry from
+    /// `model_overrides` is used directly.
+    #[serde(default = "default_model_preset")]
+    pub model_preset: String,
+    /// Per-provider model id used when `model_preset == "custom"`. Keyed by
+    /// provider id. Missing entries fall back to the provider's default.
+    #[serde(default)]
+    pub model_overrides: HashMap<String, String>,
 }
 
 fn default_transcription_provider() -> String {
     DEFAULT_TRANSCRIPTION_PROVIDER.into()
+}
+
+fn default_anthropic_model() -> String {
+    DEFAULT_ANTHROPIC_MODEL.into()
+}
+
+fn default_model_preset() -> String {
+    DEFAULT_MODEL_PRESET.into()
+}
+
+impl AppSettings {
+    /// Resolve the concrete model id to use for `provider_id` given the
+    /// current preset and overrides. Returns `None` for providers without a
+    /// configurable model (e.g. CLI providers).
+    pub fn resolved_model(&self, provider_id: &str) -> Option<String> {
+        if self.model_preset == "custom" {
+            return self.model_overrides.get(provider_id).cloned();
+        }
+        preset_model_for(&self.model_preset, provider_id).map(|s| s.to_string())
+    }
 }
 
 impl Default for AppSettings {
@@ -49,6 +130,8 @@ impl Default for AppSettings {
             claude_cli_path: None,
             codex_cli_path: None,
             transcription_provider: DEFAULT_TRANSCRIPTION_PROVIDER.into(),
+            model_preset: DEFAULT_MODEL_PRESET.into(),
+            model_overrides: HashMap::new(),
         }
     }
 }
@@ -175,6 +258,31 @@ impl SettingsStore {
 
     pub fn delete_pexels_key() -> AppResult<()> {
         let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PEXELS)?;
+        match entry.delete_credential() {
+            Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    // ---- YouTube Data API v3 key -----------------------------------------
+
+    pub fn set_youtube_key(key: &str) -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_YOUTUBE)?;
+        entry.set_password(key)?;
+        Ok(())
+    }
+
+    pub fn get_youtube_key() -> AppResult<Option<String>> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_YOUTUBE)?;
+        match entry.get_password() {
+            Ok(k) => Ok(Some(k)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    pub fn delete_youtube_key() -> AppResult<()> {
+        let entry = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_YOUTUBE)?;
         match entry.delete_credential() {
             Ok(_) | Err(keyring::Error::NoEntry) => Ok(()),
             Err(e) => Err(e.into()),

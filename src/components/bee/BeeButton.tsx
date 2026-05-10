@@ -1,6 +1,15 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
-type Variant = "primary" | "default" | "dark" | "icon" | "ghost" | "back" | "skip" | "cta-large";
+type Variant =
+  | "primary"
+  | "default"
+  | "dark"
+  | "icon"
+  | "ghost"
+  | "back"
+  | "skip"
+  | "cta-large"
+  | "danger";
 
 interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -35,6 +44,9 @@ const variants: Record<Variant, string> = {
   // Large CTA (Import page submit)
   "cta-large":
     "h-[58px] px-[26px] gap-2.5 bg-bee-yellow text-bee-ink border-bee border-bee-ink shadow-bee-4 text-[16px] font-bold tracking-[-0.2px] leading-none hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-bee-5",
+  // Destructive action (delete confirmations) — red bg, white text, ink border
+  danger:
+    "h-[46px] px-[18px] gap-2 bg-red-600 text-white border-bee border-bee-ink shadow-bee-2 text-[14px] font-bold leading-none hover:bg-red-700 hover:-translate-x-[1px] hover:-translate-y-[1px] hover:shadow-bee-4",
 };
 
 export function BeeButton({

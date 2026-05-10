@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 pub mod groq;
 pub mod openai;
+pub mod preprocess;
 
 #[async_trait]
 pub trait TranscriptionProvider: Send + Sync {

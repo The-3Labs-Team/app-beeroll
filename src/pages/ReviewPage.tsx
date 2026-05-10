@@ -6,6 +6,7 @@ import { BeeWindow } from "../components/BeeWindow";
 import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
+import { WaitScreen } from "../components/WaitScreen";
 
 type Phase = "idle" | "transcribing" | "extracting" | "done" | "error";
 
@@ -106,15 +107,53 @@ export function ReviewPage() {
           <BeeHL>{project.name}</BeeHL>
         </h1>
 
-        {phase === "transcribing" && (
-          <BeeMonoLabel as="div" className="mt-4">
-            ↻ {progressMsg || "Trascrizione audio…"}
-          </BeeMonoLabel>
-        )}
-        {phase === "extracting" && (
-          <BeeMonoLabel as="div" className="mt-4">
-            ↻ {progressMsg || "Estrazione punti B-Roll…"}
-          </BeeMonoLabel>
+        {(phase === "transcribing" || phase === "extracting") && (
+          <div className="mt-6">
+            <WaitScreen
+              title={
+                phase === "transcribing"
+                  ? "Trascrizione in corso"
+                  : "Estrazione punti B-Roll"
+              }
+              subtitle={
+                phase === "transcribing"
+                  ? "Whisper sta convertendo l'audio in testo. Per voiceover di pochi minuti servono 20-60 secondi. Non chiudere la finestra."
+                  : "L'AI sta individuando i punti B-Roll, può richiedere fino a un minuto. Non chiudere la finestra."
+              }
+              steps={
+                project.voiceover.kind === "audio"
+                  ? [
+                      {
+                        id: "transcribe",
+                        label: "Trascrizione audio (Whisper)",
+                        state:
+                          phase === "transcribing" ? "active" : "done",
+                      },
+                      {
+                        id: "extract",
+                        label: "Estrazione punti B-Roll (AI)",
+                        state:
+                          phase === "extracting" ? "active" : "pending",
+                      },
+                    ]
+                  : [
+                      {
+                        id: "extract",
+                        label: "Estrazione punti B-Roll (AI)",
+                        state: "active",
+                      },
+                    ]
+              }
+            />
+            {progressMsg && (
+              <BeeMonoLabel
+                as="div"
+                className="mt-2 text-center normal-case tracking-normal text-[11px] text-bee-ink/60"
+              >
+                {progressMsg}
+              </BeeMonoLabel>
+            )}
+          </div>
         )}
         {phase === "error" && err && (
           <p className="mt-4 font-mono text-[12px] font-bold uppercase tracking-[0.4px] text-red-700 break-words">
