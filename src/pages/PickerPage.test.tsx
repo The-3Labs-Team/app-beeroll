@@ -8,8 +8,11 @@ import type { Project, VideoCandidate } from "../types";
 vi.mock("../ipc", () => ({
   ipc: {
     searchRun: vi.fn(),
+    searchRunExtras: vi.fn(),
     pickVideo: vi.fn(),
     skipPoint: vi.fn(),
+    cancelDownload: vi.fn(),
+    projectLoad: vi.fn(),
   },
   events: {
     onDownloadProgress: vi.fn(() => Promise.resolve(() => undefined)),
@@ -82,6 +85,9 @@ describe("PickerPage", () => {
     (events.onDownloadComplete as any).mockImplementation(() =>
       Promise.resolve(() => undefined),
     );
+    (ipc.searchRunExtras as any).mockResolvedValue([]);
+    (ipc.skipPoint as any).mockResolvedValue(undefined);
+    (ipc.cancelDownload as any).mockResolvedValue(undefined);
     useStore.setState({
       project: sampleProject(),
       currentIndex: 0,
@@ -169,5 +175,70 @@ describe("PickerPage", () => {
         expect.stringContaining("yt-dlp failed"),
       );
     });
+  });
+
+  test("skip calls skipPoint and advances", async () => {
+    (ipc.searchRun as any).mockResolvedValue([sampleVideo("aaa", "Vid A")]);
+
+    render(
+      <MemoryRouter>
+        <PickerPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => screen.getByText("Vid A"));
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Salta →" }));
+    });
+
+    expect(ipc.skipPoint).toHaveBeenCalledWith("bp_01");
+    await waitFor(() => expect(useStore.getState().currentIndex).toBe(1));
+  });
+
+  test("editing keyword clears results and reruns search", async () => {
+    (ipc.searchRun as any).mockImplementation(() => new Promise(() => {}));
+    useStore.setState({
+      project: sampleProject(),
+      currentIndex: 0,
+      searchResults: { bp_01: [sampleVideo("old", "Old result")] },
+      downloads: {},
+    });
+
+    render(
+      <MemoryRouter>
+        <PickerPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByText("kw1"));
+    const input = screen.getByDisplayValue("kw1");
+    fireEvent.change(input, { target: { value: "new search" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    expect(useStore.getState().searchResults.bp_01).toEqual([]);
+    expect(ipc.searchRun).toHaveBeenCalledWith("new search");
+  });
+
+  test("download complete event shows success toast", async () => {
+    const { toast } = await import("sonner");
+    let onComplete: ((e: { point_id: string; output: string }) => void) | undefined;
+    (events.onDownloadComplete as any).mockImplementation((cb: typeof onComplete) => {
+      onComplete = cb;
+      return Promise.resolve(() => undefined);
+    });
+    (ipc.searchRun as any).mockResolvedValue([]);
+
+    render(
+      <MemoryRouter>
+        <PickerPage />
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => expect(onComplete).toBeDefined());
+    await act(async () => {
+      onComplete?.({ point_id: "bp_01", output: "clips/0001_clip.mp4" });
+    });
+
+    expect(toast.success).toHaveBeenCalledWith("Clip pronta: 0001_clip.mp4");
   });
 });
