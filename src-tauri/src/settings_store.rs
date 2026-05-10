@@ -47,11 +47,7 @@ pub fn preset_model_for(preset: &str, provider_id: &str) -> Option<&'static str>
 /// fast→balanced→accurate so it matches the slider on screen.
 pub fn available_models_for(provider_id: &str) -> &'static [&'static str] {
     match provider_id {
-        "anthropic_api" => &[
-            "claude-haiku-4-5",
-            "claude-sonnet-4-6",
-            "claude-opus-4-7",
-        ],
+        "anthropic_api" => &["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-7"],
         "openai_api" => &["gpt-4o-mini", "gpt-4o", "o1-mini"],
         "ollama" => &[
             "llama3.2:3b",
@@ -453,5 +449,53 @@ mod tests {
         std::fs::write(&path, legacy).unwrap();
         let loaded = SettingsStore::load_settings_at(&path).unwrap();
         assert_eq!(loaded.transcription_provider, "groq_api");
+    }
+
+    #[test]
+    fn preset_model_for_maps_known_provider_presets() {
+        assert_eq!(
+            preset_model_for("fast", "anthropic_api"),
+            Some("claude-haiku-4-5")
+        );
+        assert_eq!(preset_model_for("balanced", "openai_api"), Some("gpt-4o"));
+        assert_eq!(preset_model_for("accurate", "ollama"), Some("llama3.1:70b"));
+        assert_eq!(preset_model_for("balanced", "claude_cli"), None);
+        assert_eq!(preset_model_for("unknown", "anthropic_api"), None);
+    }
+
+    #[test]
+    fn resolved_model_prefers_custom_override() {
+        let mut settings = AppSettings::default();
+        settings.model_preset = "custom".into();
+        settings
+            .model_overrides
+            .insert("anthropic_api".into(), "claude-opus-4-7".into());
+
+        assert_eq!(
+            settings.resolved_model("anthropic_api"),
+            Some("claude-opus-4-7".to_string())
+        );
+        assert_eq!(settings.resolved_model("openai_api"), None);
+    }
+
+    #[test]
+    fn legacy_settings_default_model_fields_are_populated() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        let legacy = r#"{
+            "selected_provider": "anthropic_api",
+            "anthropic_model": "claude-sonnet-4-6",
+            "ollama_base_url": null,
+            "claude_cli_path": null,
+            "codex_cli_path": null
+        }"#;
+        std::fs::write(&path, legacy).unwrap();
+        let loaded = SettingsStore::load_settings_at(&path).unwrap();
+        assert_eq!(loaded.model_preset, "balanced");
+        assert!(loaded.model_overrides.is_empty());
+        assert_eq!(
+            loaded.resolved_model("anthropic_api"),
+            Some("claude-sonnet-4-6".to_string())
+        );
     }
 }

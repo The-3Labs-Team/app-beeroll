@@ -3,15 +3,15 @@ use crate::error::AppResult;
 use async_trait::async_trait;
 use std::sync::Arc;
 
+pub mod pexels;
+pub mod pixabay;
 pub mod youtube;
 pub mod youtube_api;
-pub mod pixabay;
-pub mod pexels;
 
+pub use pexels::PexelsSource;
+pub use pixabay::PixabaySource;
 pub use youtube::YouTubeSource;
 pub use youtube_api::YouTubeApiSource;
-pub use pixabay::PixabaySource;
-pub use pexels::PexelsSource;
 
 #[async_trait]
 pub trait VideoSource: Send + Sync {
@@ -106,7 +106,10 @@ mod tests {
             cand(VideoSourceId::Youtube, "yt2"),
             cand(VideoSourceId::Youtube, "yt3"),
         ];
-        let px = vec![cand(VideoSourceId::Pixabay, "px1"), cand(VideoSourceId::Pixabay, "px2")];
+        let px = vec![
+            cand(VideoSourceId::Pixabay, "px1"),
+            cand(VideoSourceId::Pixabay, "px2"),
+        ];
         let pe = vec![cand(VideoSourceId::Pexels, "pe1")];
         let agg = MultiSourceSearch::new(vec![
             Arc::new(StaticSource(VideoSourceId::Youtube, yt, false)),
@@ -130,5 +133,29 @@ mod tests {
         let result = agg.search("k", 9).await;
         let ids: Vec<&str> = result.iter().map(|c| c.video_id.as_str()).collect();
         assert_eq!(ids, vec!["yt1", "pe1"]);
+    }
+
+    #[tokio::test]
+    async fn passes_per_source_limit_to_each_source() {
+        struct LimitSource(VideoSourceId);
+
+        #[async_trait]
+        impl VideoSource for LimitSource {
+            fn id(&self) -> VideoSourceId {
+                self.0.clone()
+            }
+
+            async fn search(&self, _kw: &str, limit: u8) -> AppResult<Vec<VideoCandidate>> {
+                Ok(vec![cand(self.0.clone(), &format!("limit-{limit}"))])
+            }
+        }
+
+        let agg = MultiSourceSearch::new(vec![
+            Arc::new(LimitSource(VideoSourceId::Youtube)),
+            Arc::new(LimitSource(VideoSourceId::Pexels)),
+        ]);
+        let result = agg.search("k", 4).await;
+        let ids: Vec<&str> = result.iter().map(|c| c.video_id.as_str()).collect();
+        assert_eq!(ids, vec!["limit-4", "limit-4"]);
     }
 }

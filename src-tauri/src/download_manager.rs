@@ -1,9 +1,9 @@
 use crate::error::{AppError, AppResult};
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::process::Command;
-use std::process::Stdio;
 use tokio::sync::{Mutex as TokioMutex, Notify};
 
 pub struct DownloadManager {
@@ -18,10 +18,17 @@ pub struct DownloadProgress {
 
 impl DownloadManager {
     pub fn new(ytdlp_path: impl Into<String>) -> Self {
-        Self { ytdlp_path: ytdlp_path.into() }
+        Self {
+            ytdlp_path: ytdlp_path.into(),
+        }
     }
 
-    pub async fn download<F>(&self, url: &str, output_dir: &Path, on_progress: F) -> AppResult<PathBuf>
+    pub async fn download<F>(
+        &self,
+        url: &str,
+        output_dir: &Path,
+        on_progress: F,
+    ) -> AppResult<PathBuf>
     where
         F: FnMut(DownloadProgress) + Send,
     {
@@ -30,7 +37,8 @@ impl DownloadManager {
         // original loop. Keeping this method in the public API avoids touching
         // every call-site that doesn't need cancellation.
         let cancel = Arc::new(Notify::new());
-        self.download_cancellable(url, output_dir, on_progress, cancel).await
+        self.download_cancellable(url, output_dir, on_progress, cancel)
+            .await
     }
 
     /// Same as [`Self::download`] but races the read loop against
@@ -127,7 +135,10 @@ impl DownloadManager {
                         last_logged_pct = pct;
                     }
                     on_progress(p);
-                } else if line.trim().ends_with(".mp4") || line.trim().ends_with(".mkv") || line.trim().ends_with(".webm") {
+                } else if line.trim().ends_with(".mp4")
+                    || line.trim().ends_with(".mkv")
+                    || line.trim().ends_with(".webm")
+                {
                     filepath = Some(PathBuf::from(line.trim()));
                 }
             }
@@ -183,8 +194,8 @@ impl DownloadManager {
             )));
         }
 
-        let resolved = filepath
-            .ok_or_else(|| AppError::Subprocess("yt-dlp did not print filepath".into()))?;
+        let resolved =
+            filepath.ok_or_else(|| AppError::Subprocess("yt-dlp did not print filepath".into()))?;
         let size_kb = tokio::fs::metadata(&resolved)
             .await
             .map(|m| m.len() / 1024)
@@ -201,7 +212,9 @@ impl DownloadManager {
 
 fn parse_progress(line: &str) -> Option<DownloadProgress> {
     let l = line.trim();
-    if !l.starts_with("[download]") { return None; }
+    if !l.starts_with("[download]") {
+        return None;
+    }
     let after = l.strip_prefix("[download]")?.trim();
     let pct_token = after.split_whitespace().next()?;
     let pct = pct_token.trim_end_matches('%').parse::<f32>().ok()?;
@@ -215,7 +228,10 @@ fn parse_progress(line: &str) -> Option<DownloadProgress> {
         }
         Some(secs)
     });
-    Some(DownloadProgress { percent: pct, eta_sec: eta })
+    Some(DownloadProgress {
+        percent: pct,
+        eta_sec: eta,
+    })
 }
 
 #[cfg(test)]
@@ -232,6 +248,25 @@ mod tests {
     #[test]
     fn parse_progress_ignores_non_progress_line() {
         assert!(parse_progress("[youtube] abc: Downloading").is_none());
+    }
+
+    #[test]
+    fn parse_progress_handles_hour_minute_second_eta() {
+        let p = parse_progress("[download] 100.0% of 99.0MiB at 2.0MiB/s ETA 01:02:03").unwrap();
+        assert!((p.percent - 100.0).abs() < 0.01);
+        assert_eq!(p.eta_sec, Some(3723));
+    }
+
+    #[test]
+    fn parse_progress_handles_missing_eta() {
+        let p = parse_progress("[download]  7.5% of 1.0MiB at 200.0KiB/s").unwrap();
+        assert!((p.percent - 7.5).abs() < 0.01);
+        assert_eq!(p.eta_sec, None);
+    }
+
+    #[test]
+    fn parse_progress_rejects_malformed_percent() {
+        assert!(parse_progress("[download] nope% of 1.0MiB ETA 00:01").is_none());
     }
 
     /// Pre-firing the cancel notify before [`download_cancellable`] starts
@@ -256,12 +291,7 @@ mod tests {
         // that sleep will treat as a duration so the child runs long enough
         // for the cancel to win on slower machines.
         let result = dl
-            .download_cancellable(
-                "60",
-                dir.path(),
-                |_p: DownloadProgress| {},
-                cancel.clone(),
-            )
+            .download_cancellable("60", dir.path(), |_p: DownloadProgress| {}, cancel.clone())
             .await;
 
         // Either we cancelled (preferred) or sleep returned non-zero (fine

@@ -175,9 +175,7 @@ impl VideoSource for YouTubeApiSource {
             );
             return Ok(entries
                 .into_iter()
-                .map(|(id, title, channel, thumb)| {
-                    to_candidate(id, title, channel, thumb, 0)
-                })
+                .map(|(id, title, channel, thumb)| to_candidate(id, title, channel, thumb, 0))
                 .collect());
         }
         let durs: VideosResp = dur_resp.json().await?;
@@ -256,6 +254,7 @@ fn parse_iso8601_duration(s: &str) -> u32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::search::VideoSource;
 
     #[test]
     fn iso_duration_parses_typical_shapes() {
@@ -266,5 +265,111 @@ mod tests {
         assert_eq!(parse_iso8601_duration("PT1H"), 3600);
         assert_eq!(parse_iso8601_duration(""), 0);
         assert_eq!(parse_iso8601_duration("garbage"), 0);
+    }
+
+    #[tokio::test]
+    async fn search_uses_search_results_and_duration_batch() {
+        let mut server = mockito::Server::new_async().await;
+        let search = server
+            .mock("GET", "/search")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("part".into(), "snippet".into()),
+                mockito::Matcher::UrlEncoded("type".into(), "video".into()),
+                mockito::Matcher::UrlEncoded("maxResults".into(), "2".into()),
+                mockito::Matcher::UrlEncoded("q".into(), "trail".into()),
+                mockito::Matcher::UrlEncoded("key".into(), "test-key".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "items": [{
+                        "id": { "videoId": "abc123" },
+                        "snippet": {
+                            "title": "Trail clip",
+                            "channelTitle": "Runner Channel",
+                            "thumbnails": { "medium": { "url": "https://img.example/abc.jpg" } }
+                        }
+                    }]
+                }"#,
+            )
+            .create_async()
+            .await;
+        let videos = server
+            .mock("GET", "/videos")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("part".into(), "contentDetails".into()),
+                mockito::Matcher::UrlEncoded("id".into(), "abc123".into()),
+                mockito::Matcher::UrlEncoded("key".into(), "test-key".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "items": [{
+                        "id": "abc123",
+                        "contentDetails": { "duration": "PT1M05S" }
+                    }]
+                }"#,
+            )
+            .create_async()
+            .await;
+
+        let source = YouTubeApiSource::new("test-key".into()).with_base_url(server.url());
+        let results = source.search("trail", 2).await.unwrap();
+
+        search.assert_async().await;
+        videos.assert_async().await;
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].video_id, "abc123");
+        assert_eq!(results[0].duration_sec, 65);
+        assert_eq!(results[0].source, crate::domain::VideoSourceId::Youtube);
+    }
+
+    #[tokio::test]
+    async fn search_defaults_duration_when_videos_call_fails() {
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("GET", "/search")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("part".into(), "snippet".into()),
+                mockito::Matcher::UrlEncoded("type".into(), "video".into()),
+                mockito::Matcher::UrlEncoded("maxResults".into(), "2".into()),
+                mockito::Matcher::UrlEncoded("q".into(), "trail".into()),
+                mockito::Matcher::UrlEncoded("key".into(), "test-key".into()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(
+                r#"{
+                    "items": [{
+                        "id": { "videoId": "abc123" },
+                        "snippet": {
+                            "title": "Trail clip",
+                            "channelTitle": "Runner Channel",
+                            "thumbnails": {}
+                        }
+                    }]
+                }"#,
+            )
+            .create_async()
+            .await;
+        server
+            .mock("GET", "/videos")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("part".into(), "contentDetails".into()),
+                mockito::Matcher::UrlEncoded("id".into(), "abc123".into()),
+                mockito::Matcher::UrlEncoded("key".into(), "test-key".into()),
+            ]))
+            .with_status(500)
+            .with_body("quota problem")
+            .create_async()
+            .await;
+
+        let source = YouTubeApiSource::new("test-key".into()).with_base_url(server.url());
+        let results = source.search("trail", 2).await.unwrap();
+
+        assert_eq!(results[0].duration_sec, 0);
+        assert!(results[0].thumb_url.contains("hqdefault.jpg"));
     }
 }
