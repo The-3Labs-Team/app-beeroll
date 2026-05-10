@@ -46,15 +46,30 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />, { route: "/settings", path: "/settings" });
   }
 
+  function providerSection() {
+    return screen.getByText("Provider AI").closest("section")!;
+  }
+
+  function providerSaveButton() {
+    return within(providerSection()).getByRole("button", { name: "Salva e testa" });
+  }
+
   test("loads settings and AI CLI status", async () => {
     (ipc.settingsLoad as any).mockResolvedValue(makeSettings());
-    (ipc.aiCliStatus as any).mockResolvedValue(makeAiCliStatus());
+    (ipc.aiCliStatus as any).mockResolvedValue({
+      ...makeAiCliStatus(),
+      claude: { found: true, path: "/usr/local/bin/claude", version: "1.2.3" },
+    });
 
     renderSettings();
 
     expect(await screen.findByText("Impostazioni")).toBeInTheDocument();
     expect(screen.getByText("Provider AI")).toBeInTheDocument();
     expect(screen.getByText("Anthropic API")).toBeInTheDocument();
+    expect(ipc.aiCliStatus).toHaveBeenCalled();
+    expect(
+      within(screen.getByText("Claude CLI").closest("label")!).getByText(/Rilevato/),
+    ).toBeInTheDocument();
   });
 
   test("saves provider settings and shows verified state", async () => {
@@ -64,7 +79,7 @@ describe("SettingsPage", () => {
       await screen.findByPlaceholderText("sk-ant-... (lascia vuoto per mantenere)"),
       { target: { value: "sk-ant-test" } },
     );
-    fireEvent.click(screen.getAllByRole("button", { name: "Salva e testa" })[0]);
+    fireEvent.click(providerSaveButton());
 
     await waitFor(() =>
       expect(ipc.settingsSetAnthropicKey).toHaveBeenCalledWith("sk-ant-test"),
@@ -80,7 +95,7 @@ describe("SettingsPage", () => {
     renderSettings();
 
     await screen.findByText("Provider AI");
-    fireEvent.click(screen.getAllByRole("button", { name: "Salva e testa" })[0]);
+    fireEvent.click(providerSaveButton());
 
     expect(
       await screen.findByText(
@@ -118,6 +133,8 @@ describe("SettingsPage", () => {
     );
 
     expect(await screen.findByText(/Inserisci la chiave/)).toBeInTheDocument();
+    expect(ipc.settingsSetPixabayKey).not.toHaveBeenCalled();
+    expect(ipc.settingsTestPixabay).not.toHaveBeenCalled();
   });
 
   test("custom model mode updates settings before save", async () => {
@@ -128,7 +145,7 @@ describe("SettingsPage", () => {
     fireEvent.change(screen.getByDisplayValue("claude-haiku-4-5"), {
       target: { value: "claude-opus-4-7" },
     });
-    fireEvent.click(screen.getAllByRole("button", { name: "Salva e testa" })[0]);
+    fireEvent.click(providerSaveButton());
 
     await waitFor(() =>
       expect(ipc.settingsSave).toHaveBeenCalledWith(
