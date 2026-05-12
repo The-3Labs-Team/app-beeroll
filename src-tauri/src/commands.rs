@@ -18,7 +18,6 @@ use tokio::sync::{Mutex as TokioMutex, Notify, RwLock};
 
 pub struct AppState {
     pub current_project: RwLock<Option<Arc<ProjectStore>>>,
-    pub projects_root: PathBuf,
     pub bin_paths: RwLock<BinPaths>,
     /// Map of `point_id -> Notify` for in-flight downloads. Notifying the
     /// handle aborts the corresponding [`DownloadManager::download_cancellable`]
@@ -39,8 +38,23 @@ pub struct BinPaths {
     pub font: PathBuf,
 }
 
-fn projects_root() -> PathBuf {
+fn default_projects_root() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join("B-Roll Projects")
+}
+
+/// Resolve the currently configured projects root. Reads the persisted
+/// `AppSettings::projects_dir` on every call so the path picks up changes
+/// the user made via the Settings page without requiring an app restart.
+/// Falls back to [`default_projects_root`] when the setting is missing,
+/// empty, or the settings file fails to load.
+fn current_projects_root() -> PathBuf {
+    match SettingsStore::load_settings() {
+        Ok(s) => match s.projects_dir.as_deref().map(str::trim) {
+            Some(p) if !p.is_empty() => PathBuf::from(p),
+            _ => default_projects_root(),
+        },
+        Err(_) => default_projects_root(),
+    }
 }
 
 /// Build a [`ProviderConfig`] by combining persisted [`AppSettings`] with
@@ -98,9 +112,9 @@ pub async fn project_create(
         ));
     };
 
-    tokio::fs::create_dir_all(&state.projects_root).await?;
-    let store = ProjectStore::create(&state.projects_root, &name, voiceover.clone()).await?;
-    let project_dir = state.projects_root.join(slug::slugify(&name));
+    tokio::fs::create_dir_all(&current_projects_root()).await?;
+    let store = ProjectStore::create(&current_projects_root(), &name, voiceover.clone()).await?;
+    let project_dir = current_projects_root().join(slug::slugify(&name));
 
     if let Some(audio) = audio_path.as_deref() {
         let dest = project_dir.join(&voiceover.path);
@@ -119,7 +133,7 @@ pub async fn project_load(
     state: State<'_, AppState>,
     slug: String,
 ) -> AppResult<Project> {
-    let dir = state.projects_root.join(&slug);
+    let dir = current_projects_root().join(&slug);
     if !dir.exists() {
         return Err(AppError::ProjectNotFound(slug));
     }
@@ -132,10 +146,10 @@ pub async fn project_load(
 #[tauri::command]
 pub async fn project_list(state: State<'_, AppState>) -> AppResult<Vec<Project>> {
     let mut out = Vec::new();
-    if !state.projects_root.exists() {
+    if !current_projects_root().exists() {
         return Ok(out);
     }
-    let mut entries = tokio::fs::read_dir(&state.projects_root).await?;
+    let mut entries = tokio::fs::read_dir(&current_projects_root()).await?;
     while let Some(entry) = entries.next_entry().await? {
         if !entry.file_type().await?.is_dir() { continue; }
         let pj = entry.path().join("project.json");
@@ -285,8 +299,7 @@ pub async fn extraction_run(
                 .await?
         }
         VoiceoverKind::Text => {
-            let voiceover_path = state
-                .projects_root
+            let voiceover_path = current_projects_root()
                 .join(&project.slug)
                 .join(&project.voiceover.path);
             txt = tokio::fs::read_to_string(&voiceover_path).await?;
@@ -316,7 +329,7 @@ pub async fn transcription_run(
             .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
     };
     let project = store.project().await;
-    let project_dir = state.projects_root.join(&project.slug);
+    let project_dir = current_projects_root().join(&project.slug);
 
     // Resolve relative paths against the project dir; absolute paths pass
     // through. Frontend supplies the project-relative path (e.g.
@@ -520,7 +533,7 @@ pub async fn pick_video(
         cur.clone().ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
     };
     let project = store.project().await;
-    let project_dir = state.projects_root.join(&project.slug);
+    let project_dir = current_projects_root().join(&project.slug);
     let clips_dir = project_dir.join("clips");
     let raw_dir = project_dir.join("cache").join("downloads");
 
@@ -721,8 +734,7 @@ pub async fn cancel_download(
         // `<video_id>.<ext>` left in the cache. If it isn't there yet (we
         // cancelled before the format was known), we just move on.
         if let Some(v) = selected {
-            let raw_dir = state
-                .projects_root
+            let raw_dir = current_projects_root()
                 .join(&project_before.slug)
                 .join("cache")
                 .join("downloads");
@@ -779,7 +791,7 @@ pub async fn open_project_folder(
             store.project().await.slug
         }
     };
-    let dir = state.projects_root.join(&target_slug);
+    let dir = current_projects_root().join(&target_slug);
     if !dir.exists() {
         return Err(AppError::ProjectNotFound(target_slug));
     }
@@ -800,7 +812,7 @@ pub async fn open_project_folder(
 /// cleared so subsequent commands cannot mutate stale data.
 #[tauri::command]
 pub async fn project_delete(state: State<'_, AppState>, slug: String) -> AppResult<()> {
-    let dir = state.projects_root.join(&slug);
+    let dir = current_projects_root().join(&slug);
     if !dir.exists() {
         return Err(AppError::ProjectNotFound(slug));
     }
@@ -822,7 +834,7 @@ pub async fn project_delete(state: State<'_, AppState>, slug: String) -> AppResu
 /// treat that as "deleted").
 #[tauri::command]
 pub async fn project_size(state: State<'_, AppState>, slug: String) -> AppResult<u64> {
-    let dir = state.projects_root.join(&slug);
+    let dir = current_projects_root().join(&slug);
     if !dir.exists() {
         return Ok(0);
     }
@@ -943,7 +955,7 @@ pub async fn export_edl(state: State<'_, AppState>, output_path: String) -> AppR
         .clone()
         .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?;
     let project = store.project().await;
-    let project_dir = state.projects_root.join(&project.slug);
+    let project_dir = current_projects_root().join(&project.slug);
     crate::export::export_edl(&project, std::path::Path::new(&output_path), &project_dir).await
 }
 
@@ -956,7 +968,7 @@ pub async fn export_fcpxml(state: State<'_, AppState>, output_path: String) -> A
         .clone()
         .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?;
     let project = store.project().await;
-    let project_dir = state.projects_root.join(&project.slug);
+    let project_dir = current_projects_root().join(&project.slug);
     crate::export::export_fcpxml(&project, std::path::Path::new(&output_path), &project_dir).await
 }
 
@@ -967,7 +979,6 @@ pub fn build_state() -> AppState {
     // surface a "still preparing" error to the caller.
     AppState {
         current_project: RwLock::new(None),
-        projects_root: projects_root(),
         bin_paths: RwLock::new(BinPaths {
             ytdlp: String::new(),
             font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),

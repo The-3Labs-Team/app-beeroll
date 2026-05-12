@@ -112,6 +112,7 @@ export function OnboardingModal({ onClose }: Props) {
       transcription_provider: transcriptionProvider,
       model_preset: "balanced",
       model_overrides: {},
+      projects_dir: null,
     });
   };
 

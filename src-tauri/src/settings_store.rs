@@ -91,6 +91,10 @@ pub struct AppSettings {
     /// provider id. Missing entries fall back to the provider's default.
     #[serde(default)]
     pub model_overrides: HashMap<String, String>,
+    /// Custom location for the projects root. When `None` the default
+    /// `~/B-Roll Projects/` is used.
+    #[serde(default)]
+    pub projects_dir: Option<String>,
 }
 
 fn default_transcription_provider() -> String {
@@ -128,6 +132,7 @@ impl Default for AppSettings {
             transcription_provider: DEFAULT_TRANSCRIPTION_PROVIDER.into(),
             model_preset: DEFAULT_MODEL_PRESET.into(),
             model_overrides: HashMap::new(),
+            projects_dir: None,
         }
     }
 }

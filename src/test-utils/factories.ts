@@ -83,6 +83,7 @@ export function makeSettings(
     transcription_provider: overrides.transcription_provider ?? "groq_api",
     model_preset: overrides.model_preset ?? "balanced",
     model_overrides: overrides.model_overrides ?? {},
+    projects_dir: overrides.projects_dir ?? null,
   };
 }
 

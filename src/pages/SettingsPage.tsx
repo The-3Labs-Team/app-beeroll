@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { ipc } from "../ipc";
 import type {
   AiCliStatus,
@@ -248,6 +249,20 @@ export function SettingsPage() {
       ...settings,
       model_overrides: { ...settings.model_overrides, [providerId]: model },
     });
+
+  const pickProjectsDir = async () => {
+    const picked = await openDialog({
+      directory: true,
+      multiple: false,
+      defaultPath: settings.projects_dir ?? undefined,
+      title: "Scegli la cartella per i progetti BeeRoll",
+    });
+    if (typeof picked === "string" && picked.trim() !== "") {
+      setSettings({ ...settings, projects_dir: picked });
+    }
+  };
+  const resetProjectsDir = () =>
+    setSettings({ ...settings, projects_dir: null });
 
   const save = async () => {
     setStatus("saving");
@@ -649,6 +664,37 @@ export function SettingsPage() {
                 )}
               </label>
             ))}
+          </div>
+        </section>
+
+        <section className="mt-12 flex flex-col gap-4">
+          <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
+            Cartella progetti
+          </h2>
+          <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
+            Posizione su disco dove vengono creati i progetti (cartella con
+            <code className="font-mono"> project.json</code>, voiceover, cache yt-dlp,
+            clip finali). Il cambio vale per i progetti creati da qui in
+            avanti — i progetti esistenti restano dove sono.
+          </BeeMonoLabel>
+          <div className="flex flex-col gap-2 border-bee border-bee-ink bg-white p-4 shadow-bee-1">
+            <BeeMonoLabel as="label">Percorso attuale</BeeMonoLabel>
+            <div className="flex items-center gap-2 flex-wrap">
+              <code
+                className="flex-1 min-w-[240px] font-mono text-[12px] bg-bee-soft border-2 border-bee-ink px-2.5 py-1.5 truncate"
+                title={settings.projects_dir ?? "default (~/B-Roll Projects)"}
+              >
+                {settings.projects_dir ?? "(default) ~/B-Roll Projects"}
+              </code>
+              <BeeButton variant="default" onClick={pickProjectsDir}>
+                Sfoglia…
+              </BeeButton>
+              {settings.projects_dir && (
+                <BeeButton variant="default" onClick={resetProjectsDir}>
+                  Ripristina default
+                </BeeButton>
+              )}
+            </div>
           </div>
         </section>
 

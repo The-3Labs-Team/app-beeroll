@@ -64,6 +64,9 @@ export interface AppSettings {
   model_preset: ModelPreset;
   /** Per-provider model id used when `model_preset === "custom"`. */
   model_overrides: Record<string, string>;
+  /** Custom location for the projects root. When `null` the default
+   * `~/B-Roll Projects/` is used. */
+  projects_dir: string | null;
 }
 
 export interface TranscriptionResult {
