@@ -74,6 +74,12 @@ export function PreviewPane({
             src={ytSrc}
             title={candidate.title}
             allow="autoplay; encrypted-media"
+            // Tauri's bundled macOS build serves the webview from
+            // `tauri://localhost`; YouTube's embed checker rejects that
+            // custom scheme with "Errore 153 — configurazione del video
+            // player". Suppressing the referrer makes YouTube fall back
+            // to the no-referrer path which always accepts the embed.
+            referrerPolicy="no-referrer"
             className="w-full h-full block"
           />
         ) : candidate.stream_url ? (
