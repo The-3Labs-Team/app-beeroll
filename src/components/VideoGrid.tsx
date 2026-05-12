@@ -126,11 +126,18 @@ export function VideoGrid({
                   </div>
                 </div>
               )}
-              {/* Done badge */}
+              {/* Done overlay + corner badge */}
               {picked && pickedStatus === "done" && (
-                <span className="absolute top-1.5 right-1.5 bg-bee-ink text-bee-yellow font-mono text-[12px] font-bold px-2 py-0.5 border-2 border-bee-yellow">
-                  ✓
-                </span>
+                <>
+                  <div className="absolute inset-0 bg-bee-yellow/85 flex items-center justify-center px-4 pointer-events-none">
+                    <span className="font-mono text-[13px] font-bold text-bee-ink tracking-[0.5px] uppercase border-2 border-bee-ink bg-white px-2.5 py-1">
+                      ✓ Scaricato
+                    </span>
+                  </div>
+                  <span className="absolute top-1.5 right-1.5 bg-bee-ink text-bee-yellow font-mono text-[12px] font-bold px-2 py-0.5 border-2 border-bee-yellow">
+                    ✓
+                  </span>
+                </>
               )}
             </HoverThumb>
             <div className="px-3 py-2.5 flex flex-col gap-1">
