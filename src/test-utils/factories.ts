@@ -43,6 +43,8 @@ export function makePoint(overrides: Partial<BRollPoint> = {}): BRollPoint {
     status: overrides.status ?? "pending",
     selected_video: overrides.selected_video ?? null,
     output_clip: overrides.output_clip ?? null,
+    cached_results: overrides.cached_results ?? [],
+    cached_keyword: overrides.cached_keyword ?? null,
   };
 }
 

@@ -520,6 +520,33 @@ pub async fn search_run_extras(
     Ok(agg.search(&keyword, 9).await)
 }
 
+/// Persist the search results for a B-Roll point to disk so reopening the
+/// project later short-circuits the search. The caller passes the keyword
+/// that produced the results; on next load we only honor the cache when
+/// the picker's active keyword still matches.
+#[tauri::command]
+pub async fn point_cache_search_results(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    point_id: String,
+    keyword: String,
+    results: Vec<VideoCandidate>,
+) -> AppResult<()> {
+    let store = {
+        let cur = state.current_project.read().await;
+        cur.clone()
+            .ok_or_else(|| AppError::InvalidInput("no project loaded".into()))?
+    };
+    store
+        .update_broll_point(&point_id, |bp| {
+            bp.cached_keyword = Some(keyword);
+            bp.cached_results = results;
+        })
+        .await?;
+    app.emit("project:updated", &store.project().await).ok();
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn pick_video(
     app: AppHandle,

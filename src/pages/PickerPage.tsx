@@ -75,6 +75,18 @@ export function PickerPage() {
     if (!point) return;
     setSelected(null);
     if (searchResults[point.id]) return;
+    // Seed from the persisted cache on disk before kicking off a fresh
+    // search. We only honor the cache when its keyword still matches the
+    // picker's active keyword — otherwise the user changed the keyword
+    // and stale results would be misleading.
+    if (
+      point.cached_keyword &&
+      point.cached_keyword === activeKeyword &&
+      point.cached_results.length > 0
+    ) {
+      setSearchResults(point.id, point.cached_results);
+      return;
+    }
     runSearch(activeKeyword, point.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point?.id, activeKeyword]);
@@ -157,6 +169,12 @@ export function PickerPage() {
       // sees something fast.
       const ytResults = await ipc.searchRun(kw);
       setSearchResults(pointId, ytResults);
+      // Persist the YouTube-only results first so even if extras never
+      // arrive (no stock keys configured, network blip) the next session
+      // has something cached.
+      ipc.pointCacheSearchResults(pointId, kw, ytResults).catch((e) =>
+        console.warn("cache (yt) failed for point", pointId, e),
+      );
 
       // Phase 2: stock providers in the background. They append to the YouTube
       // results without blocking the initial render. Failures are silent — the
@@ -165,7 +183,11 @@ export function PickerPage() {
         .searchRunExtras(kw)
         .then((extras) => {
           if (extras.length === 0) return;
-          setSearchResults(pointId, [...ytResults, ...extras]);
+          const merged = [...ytResults, ...extras];
+          setSearchResults(pointId, merged);
+          ipc.pointCacheSearchResults(pointId, kw, merged).catch((e) =>
+            console.warn("cache (merged) failed for point", pointId, e),
+          );
         })
         .catch((e) =>
           console.warn("stock extras search failed for point", pointId, e),

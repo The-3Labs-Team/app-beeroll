@@ -6,6 +6,7 @@ const point = (id: string, status: BRollPoint["status"]): BRollPoint => ({
   id, theme: "", phrase: `phrase ${id}`, t_start: null, t_end: null,
   keywords: [], active_keyword: "", status,
   selected_video: null, output_clip: null,
+  cached_results: [], cached_keyword: null,
 });
 
 test("renders one cell per point", () => {

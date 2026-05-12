@@ -84,6 +84,15 @@ pub struct BRollPoint {
     pub status: BRollStatus,
     pub selected_video: Option<VideoCandidate>,
     pub output_clip: Option<String>,
+    /// Cached search results for this point, persisted so reopening a project
+    /// doesn't trigger a fresh YouTube/yt-dlp round-trip. Valid only when
+    /// `cached_keyword` matches the keyword currently displayed in the picker.
+    #[serde(default)]
+    pub cached_results: Vec<VideoCandidate>,
+    /// The keyword that produced `cached_results`. Used to invalidate the cache
+    /// when the user edits the keyword in the picker.
+    #[serde(default)]
+    pub cached_keyword: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -61,6 +61,8 @@ impl BRollExtractor {
                 status: BRollStatus::Pending,
                 selected_video: None,
                 output_clip: None,
+                cached_results: Vec::new(),
+                cached_keyword: None,
             })
             .collect())
     }

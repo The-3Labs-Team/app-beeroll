@@ -170,6 +170,8 @@ mod tests {
             status: BRollStatus::Pending,
             selected_video: None,
             output_clip: None,
+            cached_results: Vec::new(),
+            cached_keyword: None,
         };
         store.add_broll_point(bp.clone()).await.unwrap();
 

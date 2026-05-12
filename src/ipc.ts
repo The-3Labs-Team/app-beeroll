@@ -59,6 +59,16 @@ export const ipc = {
   searchRun: (keyword: string) => invoke<VideoCandidate[]>("search_run", { keyword }),
   searchRunExtras: (keyword: string) =>
     invoke<VideoCandidate[]>("search_run_extras", { keyword }),
+  pointCacheSearchResults: (
+    point_id: string,
+    keyword: string,
+    results: VideoCandidate[],
+  ) =>
+    invoke<void>("point_cache_search_results", {
+      pointId: point_id,
+      keyword,
+      results,
+    }),
   pickVideo: (point_id: string, candidate: VideoCandidate) =>
     invoke<string>("pick_video", { pointId: point_id, candidate }),
   cancelDownload: (point_id: string, delete_partial: boolean) =>

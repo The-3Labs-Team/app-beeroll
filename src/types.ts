@@ -25,6 +25,8 @@ export interface BRollPoint {
   status: BRollStatus;
   selected_video: VideoCandidate | null;
   output_clip: string | null;
+  cached_results: VideoCandidate[];
+  cached_keyword: string | null;
 }
 
 export interface Project {

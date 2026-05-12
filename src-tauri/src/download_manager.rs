@@ -217,6 +217,22 @@ impl DownloadManager {
             file = %resolved.display(),
             "yt-dlp download done"
         );
+
+        // Sanity check: yt-dlp sometimes exits 0 after YouTube serves only the
+        // first few fragments (anti-bot / 403 on the rest), leaving a tiny mp4
+        // that crashes ffmpeg downstream with a confusing "partial file"
+        // error. Catch the case here so the picker surfaces a clear message
+        // and a retry isn't tripped by `--continue` resuming from the corrupt
+        // file.
+        const MIN_VIDEO_KB: u64 = 500;
+        if size_kb < MIN_VIDEO_KB {
+            let _ = tokio::fs::remove_file(&resolved).await;
+            return Err(AppError::Subprocess(format!(
+                "yt-dlp produced a partial file ({size_kb} KB) — likely a 403 \
+                 from YouTube. Try a different candidate."
+            )));
+        }
+
         Ok(resolved)
     }
 }

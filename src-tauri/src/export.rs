@@ -338,6 +338,8 @@ mod tests {
                         stream_url: None,
                     }),
                     output_clip: Some("clips/0001_first.mp4".into()),
+                    cached_results: Vec::new(),
+                    cached_keyword: None,
                 },
                 BRollPoint {
                     id: "bp_02".into(),
@@ -350,6 +352,8 @@ mod tests {
                     status: BRollStatus::Skipped,
                     selected_video: None,
                     output_clip: None,
+                    cached_results: Vec::new(),
+                    cached_keyword: None,
                 },
             ],
         }
@@ -377,6 +381,8 @@ mod tests {
                 stream_url: None,
             }),
             output_clip: Some("clips/0003_third.mp4".into()),
+            cached_results: Vec::new(),
+            cached_keyword: None,
         });
         p
     }

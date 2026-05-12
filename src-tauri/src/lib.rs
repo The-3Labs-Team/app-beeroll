@@ -98,6 +98,7 @@ pub fn run() {
             transcription_run,
             search_run,
             search_run_extras,
+            point_cache_search_results,
             pick_video,
             cancel_download,
             skip_point,

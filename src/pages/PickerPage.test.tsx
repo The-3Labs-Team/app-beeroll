@@ -58,6 +58,8 @@ const sampleProject = (): Project => ({
       status: "pending",
       selected_video: null,
       output_clip: null,
+      cached_results: [],
+      cached_keyword: null,
     },
     {
       id: "bp_02",
@@ -70,6 +72,8 @@ const sampleProject = (): Project => ({
       status: "pending",
       selected_video: null,
       output_clip: null,
+      cached_results: [],
+      cached_keyword: null,
     },
   ],
 });
