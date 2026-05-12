@@ -1,5 +1,5 @@
 export type BRollStatus =
-  | "pending" | "searching" | "picking" | "downloading" | "paused" | "done" | "skipped" | "error";
+  | "pending" | "searching" | "picking" | "downloading" | "paused" | "processing" | "done" | "skipped" | "error";
 
 export type VideoSourceId = "youtube" | "pixabay" | "pexels";
 

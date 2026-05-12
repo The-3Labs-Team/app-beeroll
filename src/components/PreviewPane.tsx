@@ -54,6 +54,7 @@ export function PreviewPane({
   }&modestbranding=1&rel=0`;
   const isDownloading = pickedPointStatus === "downloading";
   const isPaused = pickedPointStatus === "paused";
+  const isProcessing = pickedPointStatus === "processing";
   const sourceLabel =
     candidate.source === "youtube"
       ? "YT"
@@ -122,6 +123,10 @@ export function PreviewPane({
               ✕ Stop
             </BeeButton>
           </>
+        ) : isProcessing ? (
+          <div className="flex-1 border-bee border-bee-ink bg-bee-yellow text-bee-ink font-bold text-[13px] flex items-center justify-center py-2 animate-pulse">
+            ⚙ Elaborazione overlay…
+          </div>
         ) : isPaused ? (
           <>
             <BeeButton variant="dark" onClick={onResume} className="flex-1 justify-center">

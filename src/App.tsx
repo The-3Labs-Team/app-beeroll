@@ -21,17 +21,8 @@ export default function App() {
   useEffect(() => {
     let off1: (() => void) | undefined;
     let off2: (() => void) | undefined;
-    events.onProjectUpdated((p) => {
-      console.log("[ipc] project.updated", {
-        slug: p.slug,
-        points: p.broll_points.map((b) => ({ id: b.id, status: b.status })),
-      });
-      setProject(p);
-    }).then((u) => { off1 = u; });
-    events.onDownloadProgress((e) => {
-      console.log("[ipc] download.progress", e);
-      setDownloadProgress(e);
-    }).then((u) => { off2 = u; });
+    events.onProjectUpdated((p) => setProject(p)).then((u) => { off1 = u; });
+    events.onDownloadProgress((e) => setDownloadProgress(e)).then((u) => { off2 = u; });
     return () => { off1?.(); off2?.(); };
   }, [setProject, setDownloadProgress]);
 

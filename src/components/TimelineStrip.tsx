@@ -13,6 +13,7 @@ const STATUS_LABEL: Record<BRollPoint["status"], string> = {
   picking: "selezione",
   downloading: "download",
   paused: "in pausa",
+  processing: "elaborazione",
   done: "pronto",
   skipped: "saltato",
   error: "errore",
@@ -107,6 +108,7 @@ export function TimelineStrip({ points, currentIndex, onJump }: Props) {
 
         let content: React.ReactNode = i + 1;
         if (p.status === "downloading") content = <ProgressRing percent={percent} />;
+        else if (p.status === "processing") content = <ProgressRing percent={null} />;
         else if (p.status === "paused") content = "⏸";
         else if (p.status === "done") {
           content = (
@@ -130,7 +132,7 @@ export function TimelineStrip({ points, currentIndex, onJump }: Props) {
           "border-2 border-bee-ink bg-white text-bee-ink hover:bg-bee-yellow";
         if (p.status === "done")
           stateClass = "border-2 border-bee-ink bg-bee-yellow text-bee-ink";
-        else if (p.status === "downloading")
+        else if (p.status === "downloading" || p.status === "processing")
           stateClass = "border-2 border-bee-ink bg-bee-yellow text-bee-ink";
         else if (p.status === "error")
           stateClass = "border-2 border-bee-ink bg-red-600 text-white hover:bg-red-700";

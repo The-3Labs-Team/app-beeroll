@@ -13,6 +13,10 @@ pub enum BRollStatus {
     /// (pickVideo with the same candidate) can let yt-dlp pick up where it
     /// left off.
     Paused,
+    /// yt-dlp finished writing the raw file and we're now running ffmpeg
+    /// to apply the copyright overlay. No bandwidth happening, but the
+    /// pipeline isn't done — keep the UI showing in-flight work.
+    Processing,
     Done,
     Skipped,
     Error,

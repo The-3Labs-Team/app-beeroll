@@ -59,7 +59,7 @@ pub fn run() {
                                 install.path.to_string_lossy().into_owned();
                         }
                         let _ = app_handle.emit(
-                            "toolchain.ytdlp.ready",
+                            "toolchain:ytdlp:ready",
                             serde_json::json!({
                                 "path": install.path.to_string_lossy(),
                                 "version": install.version,
@@ -69,7 +69,7 @@ pub fn run() {
                     Err(e) => {
                         tracing::error!("yt-dlp install failed: {e}");
                         let _ = app_handle
-                            .emit("toolchain.ytdlp.error", e.to_string());
+                            .emit("toolchain:ytdlp:error", e.to_string());
                     }
                 }
             });

@@ -18,10 +18,17 @@ interface Props {
   onChange: (next: string) => void;
   onHome?: () => void;
   /**
-   * Locks editing affordances (✎ and Skip) when a download is in flight or
+   * Locks editing affordances (✎ and Finish) when a download is in flight or
    * paused. Navigation back (←) intentionally stays enabled.
    */
   disabled?: boolean;
+  /**
+   * When true the right-side action becomes a plain "advance to next"
+   * (label: "Avanti"), enabled regardless of `disabled`. Used while a
+   * download is in progress so the user can move on without cancelling
+   * the in-flight work.
+   */
+  advanceOnly?: boolean;
 }
 
 const padded = (n: number) => String(n).padStart(2, "0");
@@ -40,6 +47,7 @@ export function KeywordHeader({
   onChange,
   onHome,
   disabled,
+  advanceOnly,
 }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(keyword);
@@ -157,11 +165,11 @@ export function KeywordHeader({
         <button
           type="button"
           onClick={onSkip}
-          disabled={disabled}
-          title="Salta (→)"
+          disabled={disabled && !advanceOnly}
+          title={advanceOnly ? "Avanti (→)" : "Salta (→)"}
           className="h-[34px] px-4 bg-white text-bee-ink border-2 border-bee-ink font-sans text-[13px] font-semibold cursor-pointer hover:bg-bee-ink hover:text-bee-yellow transition-colors duration-100 disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-bee-ink disabled:cursor-not-allowed"
         >
-          Salta →
+          {advanceOnly ? "Avanti →" : "Salta →"}
         </button>
         {onFinish && (
           <button

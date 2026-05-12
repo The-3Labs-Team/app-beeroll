@@ -300,7 +300,7 @@ pub async fn extraction_run(
         store.add_broll_point(p.clone()).await?;
     }
     let project_after = store.project().await;
-    app.emit("project.updated", &project_after).ok();
+    app.emit("project:updated", &project_after).ok();
     Ok(points)
 }
 
@@ -343,7 +343,7 @@ pub async fn transcription_run(
     let provider_label = provider.name();
 
     app.emit(
-        "transcription.progress",
+        "transcription:progress",
         serde_json::json!({
             "step": "start",
             "provider": provider_label,
@@ -379,9 +379,9 @@ pub async fn transcription_run(
 
     store.set_transcript(result.segments.clone()).await?;
     let project_after = store.project().await;
-    app.emit("project.updated", &project_after).ok();
+    app.emit("project:updated", &project_after).ok();
     app.emit(
-        "transcription.progress",
+        "transcription:progress",
         serde_json::json!({
             "step": "end",
             "provider": provider_label,
@@ -528,7 +528,7 @@ pub async fn pick_video(
         bp.status = BRollStatus::Downloading;
         bp.selected_video = Some(candidate.clone());
     }).await?;
-    app.emit("project.updated", &store.project().await).ok();
+    app.emit("project:updated", &store.project().await).ok();
 
     let ytdlp = await_ytdlp(&state).await?;
     let font = state.bin_paths.read().await.font.clone();
@@ -551,7 +551,7 @@ pub async fn pick_video(
     let progress_cb = move |p: crate::download_manager::DownloadProgress| {
         app_clone
             .emit(
-                "download.progress",
+                "download:progress",
                 serde_json::json!({
                     "point_id": pid,
                     "percent": p.percent,
@@ -577,9 +577,9 @@ pub async fn pick_video(
                         })
                         .await
                         .ok();
-                    app.emit("project.updated", &store.project().await).ok();
+                    app.emit("project:updated", &store.project().await).ok();
                     app.emit(
-                        "download.error",
+                        "download:error",
                         serde_json::json!({"point_id": point_id, "error": e.to_string()}),
                     )
                     .ok();
@@ -611,9 +611,9 @@ pub async fn pick_video(
                         })
                         .await
                         .ok();
-                    app.emit("project.updated", &store.project().await).ok();
+                    app.emit("project:updated", &store.project().await).ok();
                     app.emit(
-                        "download.error",
+                        "download:error",
                         serde_json::json!({"point_id": point_id, "error": e.to_string()}),
                     )
                     .ok();
@@ -635,6 +635,18 @@ pub async fn pick_video(
     let final_name = format!("{:04}_{safe_kw}.mp4", idx + 1);
     let final_path = clips_dir.join(&final_name);
 
+    // Transition the point to `processing` before kicking off ffmpeg. From
+    // the user's perspective the network phase is over (yt-dlp emitted no more
+    // download:progress events) and a different kind of work is starting; the
+    // UI shows a distinct "Elaborazione" state instead of a frozen 100%.
+    store
+        .update_broll_point(&point_id, |bp| {
+            bp.status = BRollStatus::Processing;
+        })
+        .await
+        .ok();
+    app.emit("project:updated", &store.project().await).ok();
+
     let vp = VideoProcessor::with_app(&app, font);
     let overlay_text = match candidate.source {
         VideoSourceId::Youtube => candidate.channel.clone(),
@@ -647,8 +659,8 @@ pub async fn pick_video(
         store.update_broll_point(&point_id, |bp| {
             bp.status = BRollStatus::Error;
         }).await.ok();
-        app.emit("project.updated", &store.project().await).ok();
-        app.emit("download.error", serde_json::json!({"point_id": point_id, "error": e.to_string()})).ok();
+        app.emit("project:updated", &store.project().await).ok();
+        app.emit("download:error", serde_json::json!({"point_id": point_id, "error": e.to_string()})).ok();
         return Err(e);
     }
     tracing::info!("pick_video: ffmpeg overlay done");
@@ -658,8 +670,8 @@ pub async fn pick_video(
         bp.status = BRollStatus::Done;
         bp.output_clip = Some(final_rel.clone());
     }).await?;
-    app.emit("project.updated", &store.project().await).ok();
-    app.emit("download.complete", serde_json::json!({"point_id": point_id, "output": final_rel})).ok();
+    app.emit("project:updated", &store.project().await).ok();
+    app.emit("download:complete", serde_json::json!({"point_id": point_id, "output": final_rel})).ok();
     tracing::info!(output = %final_rel, "pick_video: complete");
     Ok(final_rel)
 }
@@ -727,7 +739,7 @@ pub async fn cancel_download(
         }).await?;
     }
 
-    app.emit("project.updated", &store.project().await).ok();
+    app.emit("project:updated", &store.project().await).ok();
     Ok(())
 }
 
@@ -744,7 +756,7 @@ pub async fn skip_point(
     store.update_broll_point(&point_id, |bp| {
         bp.status = BRollStatus::Skipped;
     }).await?;
-    app.emit("project.updated", &store.project().await).ok();
+    app.emit("project:updated", &store.project().await).ok();
     Ok(())
 }
 

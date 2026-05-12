@@ -57,11 +57,11 @@ export function ProjectsPage() {
       if (ready) setYtdlpReady(true);
     });
 
-    const offReady = listen("toolchain.ytdlp.ready", () => {
+    const offReady = listen("toolchain:ytdlp:ready", () => {
       setYtdlpReady(true);
       setYtdlpError(null);
     });
-    const offError = listen<string>("toolchain.ytdlp.error", (e) => {
+    const offError = listen<string>("toolchain:ytdlp:error", (e) => {
       setYtdlpError(typeof e.payload === "string" ? e.payload : String(e.payload));
     });
 

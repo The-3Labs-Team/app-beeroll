@@ -65,6 +65,12 @@ impl DownloadManager {
                 "--newline",
                 "--no-warnings",
                 "--continue",
+                // `--print after_move:filepath` below implicitly enables
+                // quiet mode, which suppresses the `[download] X.X%` lines
+                // we rely on to drive the progress bar. `--no-quiet` keeps
+                // both: the per-line progress *and* the final filepath
+                // print template.
+                "--no-quiet",
                 // Ladder, *least likely to 403* first. YouTube tends to
                 // block adaptive streams (separate `bestvideo` + `bestaudio`)
                 // for unauthenticated residential IPs, returning 403 on the
@@ -135,10 +141,15 @@ impl DownloadManager {
                         last_logged_pct = pct;
                     }
                     on_progress(p);
-                } else if line.trim().ends_with(".mp4")
-                    || line.trim().ends_with(".mkv")
-                    || line.trim().ends_with(".webm")
+                } else if !line.trim().starts_with('[')
+                    && (line.trim().ends_with(".mp4")
+                        || line.trim().ends_with(".mkv")
+                        || line.trim().ends_with(".webm"))
                 {
+                    // Only the bare path emitted by `--print after_move:filepath`
+                    // should be captured here. Lines like `[download] Destination:
+                    // …mp4` also end with .mp4 but are status messages, not the
+                    // post-move filepath we need.
                     filepath = Some(PathBuf::from(line.trim()));
                 }
             }

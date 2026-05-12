@@ -81,7 +81,7 @@ export function VideoGrid({
               staticUrl={thumbUrl}
               videoId={r.video_id}
               enabled={r.source === "youtube"}
-              className="aspect-video border-b-bee border-bee-ink relative overflow-hidden flex items-end p-2 text-white bg-bee-ink"
+              className="w-full aspect-video border-b-bee border-bee-ink relative overflow-hidden flex items-end p-2 text-white bg-bee-ink"
             >
               <span className="absolute top-1.5 left-1.5 w-[26px] h-[26px] bg-bee-ink text-bee-yellow font-mono text-[13px] font-bold flex items-center justify-center border-2 border-bee-yellow">
                 {i + 1}
@@ -112,6 +112,17 @@ export function VideoGrid({
                       className="h-full bg-bee-ink transition-[width] duration-300"
                       style={{ width: `${downloadPercent ?? 0}%` }}
                     />
+                  </div>
+                </div>
+              )}
+              {/* Processing overlay (ffmpeg copyright overlay) */}
+              {picked && pickedStatus === "processing" && (
+                <div className="absolute inset-0 bg-bee-yellow/85 flex flex-col items-center justify-center gap-2 px-4 pointer-events-none">
+                  <span className="font-mono text-[14px] font-bold text-bee-ink tracking-[0.4px]">
+                    ELABORAZIONE…
+                  </span>
+                  <div className="w-3/4 h-1.5 bg-white border border-bee-ink overflow-hidden">
+                    <div className="h-full bg-bee-ink w-full animate-pulse" />
                   </div>
                 </div>
               )}

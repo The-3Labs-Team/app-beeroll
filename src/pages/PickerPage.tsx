@@ -9,6 +9,7 @@ import { VideoGrid } from "../components/VideoGrid";
 import { PreviewPane } from "../components/PreviewPane";
 import { TimelineStrip } from "../components/TimelineStrip";
 import { PointStatusBar } from "../components/PointStatusBar";
+import { ActiveDownloadsBanner } from "../components/ActiveDownloadsBanner";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import {
   FilterDialog,
@@ -114,6 +115,7 @@ export function PickerPage() {
     (p) =>
       p.status === "downloading" ||
       p.status === "paused" ||
+      p.status === "processing" ||
       p.status === "searching" ||
       p.status === "picking",
   ) ?? false;
@@ -178,18 +180,39 @@ export function PickerPage() {
 
   const skipCurrent = async () => {
     if (!point) return;
-    await ipc.skipPoint(point.id);
+    // If a download is already in flight (or paused) on this point, don't
+    // mark it as skipped — that would cancel the work. Just advance to the
+    // next point and let the background download keep running.
+    if (
+      point.status !== "downloading" &&
+      point.status !== "paused" &&
+      point.status !== "processing"
+    ) {
+      await ipc.skipPoint(point.id);
+    }
     goNext();
   };
 
   const commitSelected = () => {
-    if (!point || !selected) return;
+    if (!point || !selected || !project) return;
     toast.info(`Download: ${selected.title.slice(0, 50)}…`);
+    // Optimistically mark the point as downloading + attach the picked video,
+    // so the status bar and the card overlay appear immediately. The backend
+    // will overwrite this state via the next project.updated emit / polling
+    // refresh once it has actually persisted the transition.
+    setProject({
+      ...project,
+      broll_points: project.broll_points.map((p) =>
+        p.id === point.id
+          ? { ...p, status: "downloading", selected_video: selected }
+          : p,
+      ),
+    });
+    setSelected(null);
     ipc.pickVideo(point.id, selected).catch((e) => {
       console.error("pickVideo failed:", e);
       toast.error(`Download fallito: ${String(e)}`);
     });
-    goNext();
   };
 
   const onPause = () => {
@@ -212,7 +235,11 @@ export function PickerPage() {
       .catch((e) => toast.error(`Ripresa fallita: ${String(e)}`));
   };
 
-  const locked = point ? point.status === "downloading" || point.status === "paused" : false;
+  const locked = point
+    ? point.status === "downloading" ||
+      point.status === "paused" ||
+      point.status === "processing"
+    : false;
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -220,7 +247,9 @@ export function PickerPage() {
       const results = searchResults[point.id] || [];
       if (locked && e.key >= "1" && e.key <= "9") return;
       if (locked && e.key === "Enter") return;
-      if (locked && e.key === "ArrowRight") return;
+      // ArrowRight intentionally stays enabled while locked — it advances
+      // to the next point without cancelling the in-flight download
+      // (skipCurrent handles the conditional).
       if (e.key >= "1" && e.key <= "9") {
         const i = parseInt(e.key) - 1;
         if (results[i]) setSelected(results[i]);
@@ -275,6 +304,7 @@ export function PickerPage() {
         onChange={onChangeKeyword}
         onHome={() => nav("/projects")}
         disabled={locked}
+        advanceOnly={locked}
       />
       <FilterDialog
         open={filterOpen}
@@ -299,6 +329,15 @@ export function PickerPage() {
           nav("/summary");
         }}
       />
+      {project.broll_points.some(
+        (p) =>
+          p.id !== point.id &&
+          (p.status === "downloading" || p.status === "processing"),
+      ) && (
+        <div className="mx-[22px] mt-3.5">
+          <ActiveDownloadsBanner points={project.broll_points} />
+        </div>
+      )}
       <PointStatusBar point={point} download={downloads[point.id]} />
       <main className="flex flex-1 overflow-hidden min-h-0" style={{ display: "grid", gridTemplateColumns: "1fr 380px" }}>
         <div className="border-r-bee border-bee-ink overflow-y-auto bee-scroll px-[22px] pt-1.5 pb-[22px] min-w-0">

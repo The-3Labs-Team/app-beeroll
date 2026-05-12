@@ -75,13 +75,13 @@ export const ipc = {
 
 export const events = {
   onProjectUpdated: (cb: (p: Project) => void): Promise<UnlistenFn> =>
-    listen<Project>("project.updated", (e) => cb(e.payload)),
+    listen<Project>("project:updated", (e) => cb(e.payload)),
   onDownloadProgress: (cb: (e: DownloadProgressEvent) => void): Promise<UnlistenFn> =>
-    listen<DownloadProgressEvent>("download.progress", (e) => cb(e.payload)),
+    listen<DownloadProgressEvent>("download:progress", (e) => cb(e.payload)),
   onDownloadComplete: (cb: (e: { point_id: string; output: string }) => void): Promise<UnlistenFn> =>
-    listen<{ point_id: string; output: string }>("download.complete", (e) => cb(e.payload)),
+    listen<{ point_id: string; output: string }>("download:complete", (e) => cb(e.payload)),
   onTranscriptionProgress: (
     cb: (e: TranscriptionProgressEvent) => void,
   ): Promise<UnlistenFn> =>
-    listen<TranscriptionProgressEvent>("transcription.progress", (e) => cb(e.payload)),
+    listen<TranscriptionProgressEvent>("transcription:progress", (e) => cb(e.payload)),
 };

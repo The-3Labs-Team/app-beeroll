@@ -37,6 +37,28 @@ export function PointStatusBar({ point, download }: Props) {
     );
   }
 
+  if (point.status === "processing") {
+    return (
+      <div className="flex-shrink-0 mx-[22px] mt-3.5 mb-1 border-bee border-bee-ink bg-bee-yellow shadow-bee-3 px-4 py-3 flex items-center gap-3.5 flex-wrap animate-pulse">
+        <div className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-bold">
+          ⚙
+        </div>
+        <div className="text-[14px] font-bold tracking-[-0.2px]">
+          Elaborazione video…
+        </div>
+        <div className="flex-1 truncate text-[13px] font-medium min-w-[140px]">
+          {point.selected_video?.title ?? ""}
+        </div>
+        <div className="font-mono text-[11px] font-bold tracking-[0.4px] uppercase whitespace-nowrap">
+          Overlay copyright
+        </div>
+        <div className="flex-basis-full w-full mt-1 h-1.5 bg-white border border-bee-ink overflow-hidden">
+          <div className="h-full bg-bee-ink w-full animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
   if (point.status === "paused") {
     const percent = Math.round(download?.percent ?? 0);
     return (
