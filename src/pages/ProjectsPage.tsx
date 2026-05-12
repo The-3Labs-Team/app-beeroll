@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { events, ipc } from "../ipc";
 import { useStore } from "../store";
@@ -25,8 +24,6 @@ export function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [sizes, setSizes] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [ytdlpReady, setYtdlpReady] = useState(false);
-  const [ytdlpError, setYtdlpError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -48,23 +45,6 @@ export function ProjectsPage() {
   useEffect(() => {
     loadProjects();
 
-    // Wait deterministically for yt-dlp instead of relying on the
-    // `toolchain.ytdlp.ready` event: that event is emitted very early during
-    // app startup and is often missed by the listener registered below (Tauri
-    // events are fire-and-forget). The polling command resolves as soon as
-    // `bin_paths.ytdlp` is populated, with a 10s ceiling.
-    ipc.toolchainWaitReady().then((ready) => {
-      if (ready) setYtdlpReady(true);
-    });
-
-    const offReady = listen("toolchain:ytdlp:ready", () => {
-      setYtdlpReady(true);
-      setYtdlpError(null);
-    });
-    const offError = listen<string>("toolchain:ytdlp:error", (e) => {
-      setYtdlpError(typeof e.payload === "string" ? e.payload : String(e.payload));
-    });
-
     // Subscribe to project.updated so the dashboard reflects backend state
     // (download status, B-roll points) without forcing the user to navigate
     // away and come back. Each event carries the full Project payload, so we
@@ -80,8 +60,6 @@ export function ProjectsPage() {
     });
 
     return () => {
-      offReady.then((f) => f());
-      offError.then((f) => f());
       offProjectUpdated.then((f) => f());
     };
   }, []);
@@ -179,45 +157,6 @@ export function ProjectsPage() {
             </BeeButton>
           </div>
         </div>
-
-        {/* Toolchain banner (when yt-dlp not ready) */}
-        {(!ytdlpReady || ytdlpError) && (
-          <div
-            className={`mx-8 mt-5 border-bee border-bee-ink ${
-              ytdlpError ? "bg-white shadow-bee-2" : "bg-bee-yellow shadow-bee-2"
-            } px-4 py-3`}
-          >
-            {!ytdlpReady && !ytdlpError && (
-              <div className="flex items-center gap-3">
-                <span className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-mono text-[12px] font-bold">
-                  …
-                </span>
-                <div className="flex-1">
-                  <p className="font-bold text-[13px] tracking-[-0.2px]">
-                    Preparazione downloader video (yt-dlp)…
-                  </p>
-                </div>
-              </div>
-            )}
-            {ytdlpError && (
-              <div className="flex items-start gap-3">
-                <span className="w-7 h-7 flex-shrink-0 bg-bee-ink text-bee-yellow flex items-center justify-center font-mono text-[14px] font-bold">
-                  !
-                </span>
-                <div className="flex-1">
-                  <p className="font-bold text-[13px] tracking-[-0.2px]">
-                    Installazione yt-dlp fallita
-                  </p>
-                  <p className="text-[12px] mt-1 break-words">{ytdlpError}</p>
-                  <BeeMonoLabel as="p" tone="strong" className="mt-2 normal-case tracking-normal text-[11px] font-medium">
-                    Installa manualmente con <code className="bg-bee-ink text-bee-yellow px-1.5 py-0.5">brew install yt-dlp</code>{" "}
-                    o riavvia l'app.
-                  </BeeMonoLabel>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Folder grid */}
         <div className="flex-1 overflow-y-auto bee-scroll">
