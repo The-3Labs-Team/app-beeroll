@@ -6,6 +6,42 @@ Desktop tool per generare B-Roll YouTube guidato da AI. Carichi il voiceover, l'
 
 Tauri 2 + React 19 + TypeScript + Tailwind/shadcn (frontend) — Rust (backend orchestrator).
 
+## Installazione (per i collaboratori)
+
+Scarica il bundle per il tuo sistema dall'ultima [release su GitHub](https://github.com/The-3Labs-Team/app-beeroll/releases/latest):
+
+- **macOS** (Intel + Apple Silicon): `BeeRoll_<version>_universal.dmg`
+- **Windows**: `BeeRoll_<version>_x64-setup.exe` (NSIS) o `BeeRoll_<version>_x64_en-US.msi`
+
+I bundle non sono firmati (uso interno), quindi al primo avvio il sistema operativo mostra un warning di sicurezza che va sbloccato una volta sola.
+
+### macOS — bypass Gatekeeper al primo avvio
+
+Su Sonoma 14.5+ / Sequoia, fai doppio click su `BeeRoll.app` e Apple mostra "Apple non è in grado di verificare che BeeRoll non contenga malware..." con solo le opzioni "Sposta nel cestino" / "Fine". Per aprire lo stesso:
+
+1. Click su **Fine** per chiudere il dialog.
+2. Apri **System Settings → Privacy & Security**.
+3. Scorri fino alla riga "Hai aperto BeeRoll che non è stato verificato..." e clicca **"Apri comunque"**.
+4. Autenticati con Touch ID o password — il dialog riappare con il pulsante **Apri**.
+
+In alternativa, da Terminale:
+
+```bash
+xattr -d com.apple.quarantine /Applications/BeeRoll.app
+```
+
+Rimuove la quarantena messa dal download. Funziona su qualunque versione di macOS recente, anche prima del primo lancio.
+
+### Windows — bypass SmartScreen al primo avvio
+
+Eseguendo l'`.exe` o l'`.msi` appare "Windows ha protetto il PC" / "Origine sconosciuta". Click su **"Ulteriori informazioni"** → **"Esegui comunque"**. Una volta sola.
+
+### Primo avvio dell'app
+
+1. L'app scarica `yt-dlp` (~12 MB) — vedi lo splash per qualche secondo.
+2. Compare l'onboarding: inserisci la **API key Anthropic** (`sk-ant-...`, da [console.anthropic.com](https://console.anthropic.com)). Chiavi opzionali per YouTube Data API / Pixabay / Pexels nelle impostazioni.
+3. I progetti vengono creati in `~/B-Roll Projects/` (modificabile da Settings → Cartella progetti).
+
 ## Sviluppo (macOS)
 
 ### Prerequisiti
