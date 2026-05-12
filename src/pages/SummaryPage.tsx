@@ -121,6 +121,12 @@ export function SummaryPage() {
           >
             {exporting === "fcpxml" ? "Esportazione…" : "Esporta FCPXML"}
           </BeeButton>
+          <BeeButton
+            variant="dark"
+            onClick={() => nav("/picker", { state: { reopen: true } })}
+          >
+            Riapri progetto
+          </BeeButton>
           <BeeButton variant="default" onClick={() => nav("/projects")}>
             Torna alla lista
           </BeeButton>

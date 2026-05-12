@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ipc, events } from "../ipc";
 import { useStore } from "../store";
@@ -22,6 +22,11 @@ import type { VideoCandidate } from "../types";
 
 export function PickerPage() {
   const nav = useNavigate();
+  const location = useLocation();
+  // `reopen` mode comes from "Riapri progetto" on /summary; it suppresses
+  // the auto-redirect-to-summary that otherwise fires when every point is
+  // already done/skipped, letting the user revisit and replace clips.
+  const reopen = (location.state as { reopen?: boolean } | null)?.reopen === true;
   const project = useStore((s) => s.project);
   const setProject = useStore((s) => s.setProject);
   const currentIndex = useStore((s) => s.currentIndex);
@@ -53,6 +58,12 @@ export function PickerPage() {
       (p) => p.status !== "done" && p.status !== "skipped",
     );
     if (next === -1) {
+      if (reopen) {
+        // Project is finished but the user explicitly chose to reopen it;
+        // start from the first point so they can scan in order.
+        setCurrentIndex(0);
+        return;
+      }
       nav("/summary");
       return;
     }
