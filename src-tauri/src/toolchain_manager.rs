@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::process_ext::SilentCommand;
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
@@ -181,6 +182,7 @@ async fn download_ytdlp(dest: &Path, asset_name: &str) -> AppResult<()> {
 async fn ytdlp_version(path: &Path) -> AppResult<String> {
     let output = tokio::process::Command::new(path)
         .arg("--version")
+        .no_console()
         .output()
         .await
         .map_err(|e| AppError::Subprocess(format!("yt-dlp version: {e}")))?;
@@ -269,7 +271,11 @@ async fn detect_one(name: &str, args: &[&str]) -> ToolStatus {
         Err(_) => return ToolStatus { found: false, path: None, version: None },
     };
     let path_str = path.to_string_lossy().into_owned();
-    let output = tokio::process::Command::new(&path).args(args).output().await;
+    let output = tokio::process::Command::new(&path)
+        .args(args)
+        .no_console()
+        .output()
+        .await;
     match output {
         Ok(o) if o.status.success() => {
             let version = String::from_utf8_lossy(&o.stdout).lines().next().map(|l| l.to_string());

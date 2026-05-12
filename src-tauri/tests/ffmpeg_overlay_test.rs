@@ -43,11 +43,10 @@ async fn ffmpeg_overlay_applies_drawtext() {
     // The integration test cannot construct a Tauri AppHandle, so we use the
     // path-based variant of VideoProcessor pointing at the same sidecar
     // binary that gets bundled by `tauri build`.
-    let processor =
-        video_broll_lib::video_processor::VideoProcessor::<tauri::Wry>::with_path(
-            ffmpeg.clone(),
-            font,
-        );
+    let processor = video_broll_lib::video_processor::VideoProcessor::with_path(
+        ffmpeg.clone(),
+        font,
+    );
     processor
         .apply_copyright_overlay(&input, &output, "TestChannel")
         .await

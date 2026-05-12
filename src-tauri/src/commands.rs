@@ -39,7 +39,14 @@ pub struct BinPaths {
 }
 
 fn default_projects_root() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")).join("B-Roll Projects")
+    // Documents is the conventional place for user-generated content on
+    // both macOS and Windows; we prefer it over the bare home directory
+    // (which was the previous default). Falls back to home, then `.`,
+    // so the function is total even on stripped systems.
+    dirs::document_dir()
+        .or_else(dirs::home_dir)
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("B-Roll Projects")
 }
 
 /// Resolve the currently configured projects root. Reads the persisted
@@ -371,7 +378,7 @@ pub async fn transcription_run(
     // tens of seconds off the upload phase. If ffmpeg is missing or the
     // transcode fails we fall back to the original file rather than failing
     // outright — the user still gets the slow path instead of an error.
-    let transcoded = match transcription::preprocess::transcode_for_whisper(&app, &resolved).await
+    let transcoded = match transcription::preprocess::transcode_for_whisper(&resolved).await
     {
         Ok(p) => Some(p),
         Err(e) => {
@@ -687,7 +694,9 @@ pub async fn pick_video(
         .ok();
     app.emit("project:updated", &store.project().await).ok();
 
-    let vp = VideoProcessor::with_app(&app, font);
+    let ffmpeg_path = crate::process_ext::ffmpeg_path()
+        .map_err(|e| AppError::Subprocess(format!("resolve ffmpeg path: {e}")))?;
+    let vp = VideoProcessor::new(ffmpeg_path, font);
     let overlay_text = match candidate.source {
         VideoSourceId::Youtube => candidate.channel.clone(),
         VideoSourceId::Pixabay => format!("{} \u{00B7} Pixabay", candidate.channel),
@@ -1006,9 +1015,15 @@ pub fn build_state() -> AppState {
     // surface a "still preparing" error to the caller.
     AppState {
         current_project: RwLock::new(None),
+        // Both binary paths are populated from the Tauri `setup` hook
+        // (see `lib.rs::run`): `ytdlp` after the standalone bootstrap
+        // completes, `font` once Tauri's resource resolver has expanded
+        // the bundled path. Resolving the font at build time via
+        // `env!("CARGO_MANIFEST_DIR")` would bake in the CI worker's
+        // path (`D:/a/app-beeroll/...`) and break every installed copy.
         bin_paths: RwLock::new(BinPaths {
             ytdlp: String::new(),
-            font: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("resources/fonts/Inter-Regular.ttf"),
+            font: PathBuf::new(),
         }),
         active_downloads: TokioMutex::new(HashMap::new()),
         yt_cache: RwLock::new(HashMap::new()),

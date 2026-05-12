@@ -1,6 +1,7 @@
 use super::VideoSource;
 use crate::domain::{VideoCandidate, VideoSourceId};
 use crate::error::{AppError, AppResult};
+use crate::process_ext::SilentCommand;
 use async_trait::async_trait;
 use serde::Deserialize;
 use tokio::process::Command;
@@ -55,6 +56,7 @@ impl VideoSource for YouTubeSource {
                 "--quiet",
                 &query,
             ])
+            .no_console()
             .output()
             .await
             .map_err(|e| AppError::Subprocess(format!("yt-dlp spawn failed: {e}")))?;

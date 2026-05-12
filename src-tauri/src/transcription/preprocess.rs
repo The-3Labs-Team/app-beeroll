@@ -8,14 +8,14 @@
 //! podcast from ~60MB MP3 (rejected by the 25MB limit) into a ~12MB FLAC
 //! that uploads in seconds.
 //!
-//! ffmpeg ships with the app via the Tauri shell sidecar (see
-//! `tauri.conf.json > bundle.externalBin`), so this is always available at
-//! runtime.
+//! ffmpeg is the bundled sidecar binary; we spawn it via
+//! `tokio::process::Command` rather than the Tauri shell plugin so we can
+//! attach `CREATE_NO_WINDOW` on Windows (the plugin doesn't expose that
+//! flag, and without it a console window flashes every transcode).
 
 use crate::error::{AppError, AppResult};
+use crate::process_ext::{ffmpeg_path, SilentCommand};
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Runtime};
-use tauri_plugin_shell::ShellExt;
 
 /// Convert `input` to 16kHz mono FLAC and return the path to the temp file.
 /// The caller is responsible for deleting the result when done.
@@ -23,10 +23,7 @@ use tauri_plugin_shell::ShellExt;
 /// Returns the original `input` path on transcoding failure rather than
 /// erroring out — Whisper would just have to do the work itself, and we'd
 /// rather pay the slow upload than block the entire transcription run.
-pub async fn transcode_for_whisper<R: Runtime>(
-    app: &AppHandle<R>,
-    input: &Path,
-) -> AppResult<PathBuf> {
+pub async fn transcode_for_whisper(input: &Path) -> AppResult<PathBuf> {
     let stem = input
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
@@ -52,12 +49,11 @@ pub async fn transcode_for_whisper<R: Runtime>(
         &output_str,
     ];
 
-    let cmd = app
-        .shell()
-        .sidecar("ffmpeg")
-        .map_err(|e| AppError::Subprocess(format!("ffmpeg sidecar lookup: {e}")))?
-        .args(args);
-    let result = cmd
+    let ffmpeg = ffmpeg_path()
+        .map_err(|e| AppError::Subprocess(format!("resolve ffmpeg path: {e}")))?;
+    let result = tokio::process::Command::new(&ffmpeg)
+        .args(args)
+        .no_console()
         .output()
         .await
         .map_err(|e| AppError::Subprocess(format!("ffmpeg transcode: {e}")))?;

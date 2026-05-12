@@ -1,40 +1,31 @@
-//! Wraps the bundled ffmpeg sidecar to apply the copyright overlay onto a
-//! downloaded clip.
+//! Apply the copyright overlay onto a downloaded clip via the bundled
+//! ffmpeg.
 //!
-//! At runtime ffmpeg is launched through `tauri-plugin-shell`'s sidecar
-//! resolver so we do not depend on a system install. The integration test
-//! cannot construct an `AppHandle`, so the processor also accepts an explicit
-//! path for tests / CLI use.
+//! ffmpeg is spawned directly with `tokio::process::Command` (not via
+//! `tauri-plugin-shell`'s sidecar API) so we can attach `CREATE_NO_WINDOW`
+//! on Windows. The plugin doesn't expose that flag, and without it a
+//! console window flashes on the user every time an overlay runs.
 use crate::error::{AppError, AppResult};
+use crate::process_ext::SilentCommand;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Runtime};
-use tauri_plugin_shell::ShellExt;
 
-/// Source of the ffmpeg binary used by [`VideoProcessor`].
-///
-/// `Sidecar` is the production path – the [`AppHandle`] hands us the bundled
-/// ffmpeg via `tauri_plugin_shell`. `Path` is used by the integration test,
-/// which has no Tauri runtime: it points at the host-target binary fetched
-/// by `scripts/fetch-binaries.sh`.
-pub enum FfmpegSource<'a, R: Runtime> {
-    Sidecar(&'a AppHandle<R>),
-    Path(PathBuf),
-}
-
-pub struct VideoProcessor<'a, R: Runtime> {
-    source: FfmpegSource<'a, R>,
+pub struct VideoProcessor {
+    ffmpeg_path: PathBuf,
     font_path: PathBuf,
 }
 
-impl<'a, R: Runtime> VideoProcessor<'a, R> {
-    /// Production constructor – uses the Tauri shell sidecar.
-    pub fn with_app(app: &'a AppHandle<R>, font_path: PathBuf) -> Self {
-        Self { source: FfmpegSource::Sidecar(app), font_path }
+impl VideoProcessor {
+    pub fn new(ffmpeg_path: impl Into<PathBuf>, font_path: PathBuf) -> Self {
+        Self {
+            ffmpeg_path: ffmpeg_path.into(),
+            font_path,
+        }
     }
 
-    /// Test/CLI constructor – invokes the ffmpeg binary at `path` directly.
-    pub fn with_path(path: impl Into<PathBuf>, font_path: PathBuf) -> Self {
-        Self { source: FfmpegSource::Path(path.into()), font_path }
+    /// Backwards-compatible alias for callers / tests still using the old
+    /// `with_path` name.
+    pub fn with_path(ffmpeg_path: impl Into<PathBuf>, font_path: PathBuf) -> Self {
+        Self::new(ffmpeg_path, font_path)
     }
 
     pub async fn apply_copyright_overlay(
@@ -59,35 +50,16 @@ impl<'a, R: Runtime> VideoProcessor<'a, R> {
             "-loglevel", "error",
         ];
 
-        match &self.source {
-            FfmpegSource::Sidecar(app) => {
-                let cmd = app
-                    .shell()
-                    .sidecar("ffmpeg")
-                    .map_err(|e| AppError::Subprocess(format!("ffmpeg sidecar lookup: {e}")))?
-                    .args(args)
-                    .arg(&output_str);
-                let result = cmd
-                    .output()
-                    .await
-                    .map_err(|e| AppError::Subprocess(format!("ffmpeg run: {e}")))?;
-                if !result.status.success() {
-                    let stderr = String::from_utf8_lossy(&result.stderr);
-                    return Err(AppError::Subprocess(format!("ffmpeg failed: {stderr}")));
-                }
-            }
-            FfmpegSource::Path(path) => {
-                let result = tokio::process::Command::new(path)
-                    .args(args)
-                    .arg(&output_str)
-                    .output()
-                    .await
-                    .map_err(|e| AppError::Subprocess(format!("ffmpeg spawn: {e}")))?;
-                if !result.status.success() {
-                    let stderr = String::from_utf8_lossy(&result.stderr);
-                    return Err(AppError::Subprocess(format!("ffmpeg failed: {stderr}")));
-                }
-            }
+        let result = tokio::process::Command::new(&self.ffmpeg_path)
+            .args(args)
+            .arg(&output_str)
+            .no_console()
+            .output()
+            .await
+            .map_err(|e| AppError::Subprocess(format!("ffmpeg spawn: {e}")))?;
+        if !result.status.success() {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            return Err(AppError::Subprocess(format!("ffmpeg failed: {stderr}")));
         }
         Ok(())
     }

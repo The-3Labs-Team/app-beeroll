@@ -1,4 +1,5 @@
 use crate::error::{AppError, AppResult};
+use crate::process_ext::SilentCommand;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Arc;
@@ -99,6 +100,7 @@ impl DownloadManager {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true)
+            .no_console()
             .spawn()
             .map_err(|e| AppError::Subprocess(format!("yt-dlp spawn: {e}")))?;
 
