@@ -89,12 +89,22 @@ pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
     let need_install = !local_path.exists();
     let need_update = !need_install && should_check_update(&bin_dir).await;
 
+    let mut version_just_probed = false;
     if need_install || need_update {
         // For auto-update we tolerate transient network failures: the existing
         // binary is still usable. For first-install the failure must surface.
         match download_ytdlp(&local_path, asset_name).await {
             Ok(()) => {
                 mark_update_check(&bin_dir).await;
+                // Probe the version once now and cache it to disk. On macOS
+                // the PyInstaller-frozen yt-dlp takes ~15-20s on each
+                // invocation, so doing the probe at every app start would
+                // visibly stall the boot splash; the cached value lets us
+                // skip the probe on subsequent launches.
+                if let Ok(v) = ytdlp_version(&local_path).await {
+                    let _ = tokio::fs::write(bin_dir.join(".version"), v).await;
+                    version_just_probed = true;
+                }
             }
             Err(e) if !need_install => {
                 tracing::warn!("yt-dlp update check failed (keeping existing binary): {e}");
@@ -107,11 +117,31 @@ pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
         }
     }
 
-    let version = ytdlp_version(&local_path).await.ok();
+    let version = read_cached_version(&bin_dir).await;
+    if version.is_none() && !version_just_probed {
+        // No cached version on disk (older installs predating the cache).
+        // Fall back to a one-shot probe so we don't lose the version info
+        // forever, then persist it for next time.
+        if let Ok(v) = ytdlp_version(&local_path).await {
+            let _ = tokio::fs::write(bin_dir.join(".version"), &v).await;
+            return Ok(YtdlpInstall {
+                path: local_path,
+                version: Some(v),
+            });
+        }
+    }
     Ok(YtdlpInstall {
         path: local_path,
         version,
     })
+}
+
+async fn read_cached_version(bin_dir: &Path) -> Option<String> {
+    tokio::fs::read_to_string(bin_dir.join(".version"))
+        .await
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
 }
 
 /// Look up yt-dlp on PATH and verify it actually runs. Returns None when
@@ -180,12 +210,17 @@ async fn mark_update_check(bin_dir: &Path) {
 /// Detect yt-dlp using the AppHandle: prefer the auto-installed copy, fall
 /// back to PATH (legacy installs).
 pub async fn detect_toolchain_with_app(app: &AppHandle) -> ToolchainStatus {
-    let local_path = ytdlp_bin_dir(app)
-        .ok()
-        .map(|dir| dir.join(ytdlp_local_file_name()));
+    let bin_dir = ytdlp_bin_dir(app).ok();
+    let local_path = bin_dir.as_ref().map(|dir| dir.join(ytdlp_local_file_name()));
 
     let ytdlp = if let Some(path) = local_path.as_ref().filter(|p| p.exists()) {
-        let version = ytdlp_version(path).await.ok();
+        // Read the version from disk (written by ensure_ytdlp on download).
+        // Probing the PyInstaller-frozen binary directly costs ~15-20s on
+        // macOS, which would stall the onboarding screen every launch.
+        let version = match bin_dir.as_ref() {
+            Some(d) => read_cached_version(d).await,
+            None => None,
+        };
         ToolStatus {
             found: true,
             path: Some(path.to_string_lossy().into_owned()),
