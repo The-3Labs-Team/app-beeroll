@@ -63,6 +63,28 @@ extract_ffmpeg_from_zip() {
 }
 
 case "$TARGET" in
+  universal-apple-darwin)
+    DEST="$DEST_DIR/ffmpeg-${TARGET}"
+    if [ -x "$DEST" ] && [ -s "$DEST" ]; then
+      echo "Already present: $DEST"
+      exit 0
+    fi
+    if ! command -v lipo >/dev/null 2>&1; then
+      echo "lipo not found; universal-apple-darwin builds require macOS." >&2
+      exit 1
+    fi
+    # Fetch both architectures via the regular per-target paths, then
+    # combine into a single fat mach-o that Tauri picks up when bundling
+    # with `--target universal-apple-darwin`.
+    bash "$0" aarch64-apple-darwin
+    bash "$0" x86_64-apple-darwin
+    lipo -create \
+      "$DEST_DIR/ffmpeg-aarch64-apple-darwin" \
+      "$DEST_DIR/ffmpeg-x86_64-apple-darwin" \
+      -output "$DEST"
+    chmod 755 "$DEST"
+    echo "Wrote $DEST (universal)"
+    ;;
   x86_64-apple-darwin)
     DEST="$DEST_DIR/ffmpeg-${TARGET}"
     if [ -x "$DEST" ] && [ -s "$DEST" ]; then

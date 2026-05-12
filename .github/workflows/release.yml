@@ -15,10 +15,12 @@ jobs:
         include:
           - platform: 'macos-latest'
             args: '--target universal-apple-darwin'
-          - platform: 'ubuntu-latest'
-            args: ''
           - platform: 'windows-latest'
             args: ''
+      # Linux build is intentionally dropped: it's not a supported
+      # collaborator platform right now, and ubuntu-latest's apt repo
+      # stopped shipping libappindicator3-dev which broke the install
+      # step. Re-add a row here when we want Linux back.
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
@@ -51,9 +53,7 @@ jobs:
       - name: Fetch ffmpeg sidecar (universal macOS)
         if: matrix.platform == 'macos-latest'
         shell: bash
-        run: |
-          bash scripts/fetch-binaries.sh aarch64-apple-darwin
-          bash scripts/fetch-binaries.sh x86_64-apple-darwin
+        run: bash scripts/fetch-binaries.sh universal-apple-darwin
 
       - name: Fetch ffmpeg sidecar (Linux)
         if: matrix.platform == 'ubuntu-latest'
