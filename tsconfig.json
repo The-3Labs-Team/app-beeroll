@@ -20,8 +20,9 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    /* Path aliases */
-    "baseUrl": ".",
+    /* Path aliases — `paths` are resolved relative to the tsconfig
+       directory in TS 5+, so the explicit `baseUrl` is no longer
+       needed (and TS 6 marks it as deprecated). */
     "paths": {
       "@/*": ["./src/*"]
     },

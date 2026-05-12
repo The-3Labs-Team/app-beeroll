@@ -114,7 +114,7 @@ describe("PickerPage", () => {
     await waitFor(() => expect(ipc.searchRun).toHaveBeenCalledWith("kw1"));
   });
 
-  test("clicking 'Download & use' calls pickVideo and advances", async () => {
+  test("clicking 'Download & use' calls pickVideo and stays on the point", async () => {
     (ipc.searchRun as any).mockResolvedValue([sampleVideo("aaa", "Vid A")]);
     (ipc.pickVideo as any).mockResolvedValue("clips/0001_a.mp4");
 
@@ -145,10 +145,12 @@ describe("PickerPage", () => {
       expect.objectContaining({ video_id: "aaa" }),
     );
 
-    // Should advance to point 2
+    // Should stay on the current point — auto-advance was removed so the
+    // user can see the download progress on the picked card; advancing
+    // is done explicitly with the "Avanti →" button (Skip-but-keep-work).
     await waitFor(() => {
       const state = useStore.getState();
-      expect(state.currentIndex).toBe(1);
+      expect(state.currentIndex).toBe(0);
     });
   });
 
