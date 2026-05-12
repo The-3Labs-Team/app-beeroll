@@ -13,6 +13,7 @@ pub mod toolchain_manager;
 pub mod export;
 pub mod commands;
 pub mod log_capture;
+pub mod process_ext;
 
 use tauri::{Emitter, Manager};
 
@@ -38,6 +39,31 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .manage(build_state())
         .setup(|app| {
+            // Resolve the bundled font path (Tauri places resources under
+            // BaseDirectory::Resource at runtime — both in dev and in the
+            // installed bundle). Hardcoding the build-time CARGO_MANIFEST_DIR
+            // would leave the CI worker's path baked in the binary, which is
+            // why drawtext was failing on every installed copy with a path
+            // like `D:/a/app-beeroll/...`. Resolved in a spawned task so we
+            // can take the async RwLock without deadlocking the setup hook.
+            let font_app = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                match font_app.path().resolve(
+                    "resources/fonts/Inter-Regular.ttf",
+                    tauri::path::BaseDirectory::Resource,
+                ) {
+                    Ok(p) => {
+                        if let Some(state) =
+                            font_app.try_state::<crate::commands::AppState>()
+                        {
+                            state.bin_paths.write().await.font = p.clone();
+                        }
+                        tracing::info!(font = ?p, "font resource resolved");
+                    }
+                    Err(e) => tracing::error!("font resolve failed: {e}"),
+                }
+            });
+
             // Bootstrap yt-dlp in the background so the UI loads immediately.
             // The result is stored on AppState and broadcast via events; the
             // frontend ProjectsPage shows a spinner until the ready event
