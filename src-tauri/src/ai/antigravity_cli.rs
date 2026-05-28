@@ -59,10 +59,10 @@ impl AIProvider for AntigravityCliProvider {
 mod tests {
     use super::*;
 
-    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
-        let provider = AntigravityCliProvider::new("/bin/echo".into());
+        let (_guard, mock_path) = crate::test_mock::echo_mock();
+        let provider = AntigravityCliProvider::new(mock_path.to_string_lossy().into_owned());
         let out = provider.complete("system", "user").await.unwrap();
         assert!(out.contains("system"));
         assert!(out.contains("user"));

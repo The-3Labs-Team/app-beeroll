@@ -15,6 +15,9 @@ pub mod commands;
 pub mod log_capture;
 pub mod process_ext;
 
+#[cfg(test)]
+mod test_mock;
+
 use tauri::{Emitter, Manager};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

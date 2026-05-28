@@ -62,15 +62,11 @@ impl AIProvider for CodexCliProvider {
 mod tests {
     use super::*;
 
-    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
-        // /bin/echo prints its args to stdout; we use it as a stand-in for a real
-        // codex binary so the test stays hermetic.
-        let provider = CodexCliProvider::new("/bin/echo".into());
+        let (_guard, mock_path) = crate::test_mock::echo_mock();
+        let provider = CodexCliProvider::new(mock_path.to_string_lossy().into_owned());
         let out = provider.complete("system", "user").await.unwrap();
-        // The echoed line should at least contain `exec` (the first arg) and the
-        // prompt body.
         assert!(out.contains("exec"));
         assert!(out.contains("system"));
         assert!(out.contains("user"));

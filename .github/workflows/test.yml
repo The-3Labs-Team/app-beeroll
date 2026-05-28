@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
+        platform: [macos-latest, windows-latest]
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v6
@@ -29,21 +29,10 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Install Linux deps
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libayatana-appindicator3-dev pkg-config libssl-dev
-
       - name: Install frontend deps
         run: npm ci
 
-      - name: Install Playwright Chromium dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: npx playwright install --with-deps chromium
-
       - name: Install Playwright Chromium
-        if: matrix.platform != 'ubuntu-latest'
         run: npx playwright install chromium
 
       - name: Fetch ffmpeg sidecar for host target

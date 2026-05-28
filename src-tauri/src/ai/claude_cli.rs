@@ -61,14 +61,11 @@ impl AIProvider for ClaudeCliProvider {
 mod tests {
     use super::*;
 
-    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
-        // /bin/echo prints its args to stdout; this lets us simulate a CLI that
-        // produces a deterministic response without needing a real `claude` binary.
-        let provider = ClaudeCliProvider::new("/bin/echo".into());
+        let (_guard, mock_path) = crate::test_mock::echo_mock();
+        let provider = ClaudeCliProvider::new(mock_path.to_string_lossy().into_owned());
         let out = provider.complete("system", "user").await.unwrap();
-        // /bin/echo prints "-p <prompt>" — the trim collapses trailing newline.
         assert!(out.contains("system"));
         assert!(out.contains("user"));
     }

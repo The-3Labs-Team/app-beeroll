@@ -298,37 +298,24 @@ mod tests {
         assert!(parse_progress("[download] nope% of 1.0MiB ETA 00:01").is_none());
     }
 
-    /// Pre-firing the cancel notify before [`download_cancellable`] starts
-    /// must terminate the run with the conventional cancelled-error string,
-    /// even on a system without yt-dlp on PATH (the cancel fires before
-    /// stdout reads). This guards the wiring between AppState's notify map
-    /// and the manager's tokio::select branch.
+    /// A cancel signal queued before [`download_cancellable`] starts must be
+    /// honored by the `tokio::select!` cancel branch (not lost). Uses
+    /// `notify_one()` so the permit is retained until `notified()` is polled.
     #[tokio::test]
     async fn cancellable_returns_cancelled_when_notified_before_progress() {
-        // Use a path that will spawn-fail in case the cancel branch loses the
-        // race; the test fails clearly either way (we'd see the spawn error,
-        // not "download cancelled"). The /usr/bin/sleep here just produces a
-        // long-running child without any stdout, so the only way to terminate
-        // the loop is through the cancel signal.
-        let dl = DownloadManager::new("/bin/sleep");
+        let (_guard, mock_path) = crate::test_mock::sleep_mock();
+        let dl = DownloadManager::new(mock_path.to_string_lossy().into_owned());
         let cancel = Arc::new(Notify::new());
-        // Notify before await so the select fires immediately.
-        cancel.notify_waiters();
+        cancel.notify_one();
 
         let dir = tempfile::tempdir().expect("tmp dir");
-        // Pre-fire is a race with the spawn — give the manager an URL arg
-        // that sleep will treat as a duration so the child runs long enough
-        // for the cancel to win on slower machines.
         let result = dl
-            .download_cancellable("60", dir.path(), |_p: DownloadProgress| {}, cancel.clone())
+            .download_cancellable("https://example.com/watch?v=test", dir.path(), |_p: DownloadProgress| {}, cancel.clone())
             .await;
 
-        // Either we cancelled (preferred) or sleep returned non-zero (fine
-        // too — also exits the function with a Subprocess error). What we
-        // *don't* want is a successful Ok(_) here.
         match result {
-            Err(AppError::Subprocess(_)) => {}
-            other => panic!("expected Subprocess error, got {other:?}"),
+            Err(AppError::Subprocess(msg)) if msg == "download cancelled" => {}
+            other => panic!("expected download cancelled, got {other:?}"),
         }
     }
 }
