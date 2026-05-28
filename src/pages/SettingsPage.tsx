@@ -7,6 +7,7 @@ import type {
   AppSettings,
   ModelPreset,
   ProviderId,
+  ToolchainStatus,
   TranscriptionProviderId,
 } from "../types";
 import { BeeWindow } from "../components/BeeWindow";
@@ -32,6 +33,7 @@ const PROVIDERS: ProviderOption[] = [
   { id: "ollama", label: "Ollama (locale)", kind: "ollama", cliKey: "ollama" },
   { id: "claude_cli", label: "Claude CLI", kind: "cli", cliKey: "claude" },
   { id: "codex_cli", label: "Codex CLI", kind: "cli", cliKey: "codex" },
+  { id: "antigravity_cli", label: "Antigravity CLI", kind: "cli", cliKey: "antigravity" },
 ];
 
 interface TranscriptionOption {
@@ -105,6 +107,26 @@ function resolveModelClient(
 
 const beeInputClass =
   "w-full h-[46px] border-bee border-bee-ink bg-white px-3.5 font-mono text-[13px] font-medium text-bee-ink outline-none transition-shadow duration-75 focus:shadow-[5px_5px_0_#FFD60A] placeholder:text-bee-mute placeholder:font-normal";
+
+function withAutodetectedBinPaths(
+  settings: AppSettings,
+  cliStatus: AiCliStatus,
+  toolchainStatus: ToolchainStatus,
+): AppSettings {
+  return {
+    ...settings,
+    yt_dlp_path:
+      settings.yt_dlp_path ?? (toolchainStatus.ytdlp.found ? toolchainStatus.ytdlp.path : null),
+    claude_cli_path:
+      settings.claude_cli_path ??
+      (cliStatus.claude.found ? cliStatus.claude.path : null),
+    codex_cli_path:
+      settings.codex_cli_path ?? (cliStatus.codex.found ? cliStatus.codex.path : null),
+    antigravity_cli_path:
+      settings.antigravity_cli_path ??
+      (cliStatus.antigravity.found ? cliStatus.antigravity.path : null),
+  };
+}
 
 export function SettingsPage() {
   const nav = useNavigate();
@@ -209,9 +231,13 @@ export function SettingsPage() {
     let cancelled = false;
     const load = async () => {
       try {
-        const [s, c] = await Promise.all([ipc.settingsLoad(), ipc.aiCliStatus()]);
+        const [s, c, t] = await Promise.all([
+          ipc.settingsLoad(),
+          ipc.aiCliStatus(),
+          ipc.toolchainStatus(),
+        ]);
         if (cancelled) return;
-        setSettings(s);
+        setSettings(withAutodetectedBinPaths(s, c, t));
         setCliStatus(c);
       } catch (e) {
         setErr(String(e));
@@ -694,6 +720,183 @@ export function SettingsPage() {
                   Ripristina default
                 </BeeButton>
               )}
+            </div>
+          </div>
+        </section>
+
+        {/* Percorsi dei Binari */}
+        <section className="mt-12 flex flex-col gap-4">
+          <h2 className="font-mono text-[12px] font-bold tracking-[0.6px] uppercase m-0 bg-bee-ink text-bee-yellow px-2.5 py-1.5 self-start">
+            Percorsi dei Binari (Eseguibili)
+          </h2>
+          <BeeMonoLabel as="p" className="normal-case tracking-[0.3px] text-[12px] leading-[1.6]">
+            Configura percorsi personalizzati per gli eseguibili di sistema.
+            Se lasciati vuoti, l'applicazione cercherà i binari nel sistema o utilizzerà i valori di default.
+          </BeeMonoLabel>
+
+          <div className="flex flex-col gap-4 border-bee border-bee-ink bg-white p-4 shadow-bee-1">
+            {/* yt-dlp */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <BeeMonoLabel as="label" className="font-bold">Percorso yt-dlp</BeeMonoLabel>
+                {settings.yt_dlp_path && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, yt_dlp_path: null })}
+                    className="font-mono text-[10px] text-red-600 hover:underline"
+                  >
+                    Ripristina default
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Seleziona il percorso di yt-dlp..."
+                  value={settings.yt_dlp_path ?? ""}
+                  onChange={(e) => setSettings({ ...settings, yt_dlp_path: e.target.value.trim() === "" ? null : e.target.value })}
+                  className={`flex-1 ${beeInputClass}`}
+                />
+                <BeeButton
+                  variant="default"
+                  onClick={async () => {
+                    const picked = await openDialog({
+                      directory: false,
+                      multiple: false,
+                      defaultPath: settings.yt_dlp_path ?? undefined,
+                      title: "Scegli l'eseguibile yt-dlp",
+                    });
+                    if (typeof picked === "string" && picked.trim() !== "") {
+                      setSettings({ ...settings, yt_dlp_path: picked });
+                    }
+                  }}
+                >
+                  Sfoglia…
+                </BeeButton>
+              </div>
+            </div>
+
+            {/* Claude CLI */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <BeeMonoLabel as="label" className="font-bold">Percorso Claude CLI</BeeMonoLabel>
+                {settings.claude_cli_path && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, claude_cli_path: null })}
+                    className="font-mono text-[10px] text-red-600 hover:underline"
+                  >
+                    Ripristina default
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Seleziona il percorso di Claude CLI..."
+                  value={settings.claude_cli_path ?? ""}
+                  onChange={(e) => setSettings({ ...settings, claude_cli_path: e.target.value.trim() === "" ? null : e.target.value })}
+                  className={`flex-1 ${beeInputClass}`}
+                />
+                <BeeButton
+                  variant="default"
+                  onClick={async () => {
+                    const picked = await openDialog({
+                      directory: false,
+                      multiple: false,
+                      defaultPath: settings.claude_cli_path ?? undefined,
+                      title: "Scegli l'eseguibile Claude CLI",
+                    });
+                    if (typeof picked === "string" && picked.trim() !== "") {
+                      setSettings({ ...settings, claude_cli_path: picked });
+                    }
+                  }}
+                >
+                  Sfoglia…
+                </BeeButton>
+              </div>
+            </div>
+
+            {/* Codex CLI */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <BeeMonoLabel as="label" className="font-bold">Percorso Codex CLI</BeeMonoLabel>
+                {settings.codex_cli_path && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, codex_cli_path: null })}
+                    className="font-mono text-[10px] text-red-600 hover:underline"
+                  >
+                    Ripristina default
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Seleziona il percorso di Codex CLI..."
+                  value={settings.codex_cli_path ?? ""}
+                  onChange={(e) => setSettings({ ...settings, codex_cli_path: e.target.value.trim() === "" ? null : e.target.value })}
+                  className={`flex-1 ${beeInputClass}`}
+                />
+                <BeeButton
+                  variant="default"
+                  onClick={async () => {
+                    const picked = await openDialog({
+                      directory: false,
+                      multiple: false,
+                      defaultPath: settings.codex_cli_path ?? undefined,
+                      title: "Scegli l'eseguibile Codex CLI",
+                    });
+                    if (typeof picked === "string" && picked.trim() !== "") {
+                      setSettings({ ...settings, codex_cli_path: picked });
+                    }
+                  }}
+                >
+                  Sfoglia…
+                </BeeButton>
+              </div>
+            </div>
+
+            {/* Antigravity CLI */}
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <BeeMonoLabel as="label" className="font-bold">Percorso Antigravity CLI</BeeMonoLabel>
+                {settings.antigravity_cli_path && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings({ ...settings, antigravity_cli_path: null })}
+                    className="font-mono text-[10px] text-red-600 hover:underline"
+                  >
+                    Ripristina default
+                  </button>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Seleziona il percorso di Antigravity CLI..."
+                  value={settings.antigravity_cli_path ?? ""}
+                  onChange={(e) => setSettings({ ...settings, antigravity_cli_path: e.target.value.trim() === "" ? null : e.target.value })}
+                  className={`flex-1 ${beeInputClass}`}
+                />
+                <BeeButton
+                  variant="default"
+                  onClick={async () => {
+                    const picked = await openDialog({
+                      directory: false,
+                      multiple: false,
+                      defaultPath: settings.antigravity_cli_path ?? undefined,
+                      title: "Scegli l'eseguibile Antigravity CLI",
+                    });
+                    if (typeof picked === "string" && picked.trim() !== "") {
+                      setSettings({ ...settings, antigravity_cli_path: picked });
+                    }
+                  }}
+                >
+                  Sfoglia…
+                </BeeButton>
+              </div>
             </div>
           </div>
         </section>

@@ -8,6 +8,7 @@ import type {
   FirstRunStatus,
   LogEntry,
   Project,
+  ToolchainStatus,
   TranscriptionProgressEvent,
   TranscriptionResult,
   VideoCandidate,
@@ -50,6 +51,7 @@ export const ipc = {
   settingsSave: (settings: AppSettings) =>
     invoke<void>("settings_save", { settings }),
   aiCliStatus: () => invoke<AiCliStatus>("ai_cli_status"),
+  toolchainStatus: () => invoke<ToolchainStatus>("toolchain_status"),
   firstRunStatus: () => invoke<FirstRunStatus>("first_run_status"),
   toolchainBootstrap: () => invoke<boolean>("toolchain_bootstrap"),
   toolchainWaitReady: () => invoke<boolean>("toolchain_wait_ready"),

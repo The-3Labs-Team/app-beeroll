@@ -84,6 +84,14 @@ export function OnboardingModal({ onClose }: Props) {
         : "Non installato",
       available: status.ai_clis.ollama.found,
     },
+    {
+      id: "antigravity_cli",
+      label: "Antigravity CLI",
+      desc: status.ai_clis.antigravity.found
+        ? "Rilevato — usa il tuo Antigravity."
+        : "Non installato",
+      available: status.ai_clis.antigravity.found,
+    },
   ];
 
   const transcriptionOptions: { id: TranscriptionProviderId; label: string; desc: string }[] = [
@@ -109,6 +117,8 @@ export function OnboardingModal({ onClose }: Props) {
       ollama_base_url: provider === "ollama" ? "http://localhost:11434" : null,
       claude_cli_path: null,
       codex_cli_path: null,
+      yt_dlp_path: null,
+      antigravity_cli_path: null,
       transcription_provider: transcriptionProvider,
       model_preset: "balanced",
       model_overrides: {},

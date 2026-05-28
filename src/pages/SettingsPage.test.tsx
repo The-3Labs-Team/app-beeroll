@@ -1,12 +1,13 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
-import { makeAiCliStatus, makeSettings } from "../test-utils/factories";
+import { makeAiCliStatus, makeSettings, makeToolchainStatus } from "../test-utils/factories";
 import { renderWithRouter } from "../test-utils/render";
 
 vi.mock("../ipc", () => ({
   ipc: {
     settingsLoad: vi.fn(),
     aiCliStatus: vi.fn(),
+    toolchainStatus: vi.fn(),
     settingsSetAnthropicKey: vi.fn(),
     settingsSetOpenaiKey: vi.fn(),
     settingsSetGroqKey: vi.fn(),
@@ -29,6 +30,7 @@ describe("SettingsPage", () => {
     vi.clearAllMocks();
     (ipc.settingsLoad as any).mockResolvedValue(makeSettings());
     (ipc.aiCliStatus as any).mockResolvedValue(makeAiCliStatus());
+    (ipc.toolchainStatus as any).mockResolvedValue(makeToolchainStatus());
     (ipc.settingsSetAnthropicKey as any).mockResolvedValue(undefined);
     (ipc.settingsSetOpenaiKey as any).mockResolvedValue(undefined);
     (ipc.settingsSetGroqKey as any).mockResolvedValue(undefined);
@@ -67,9 +69,38 @@ describe("SettingsPage", () => {
     expect(screen.getByText("Provider AI")).toBeInTheDocument();
     expect(screen.getByText("Anthropic API")).toBeInTheDocument();
     expect(ipc.aiCliStatus).toHaveBeenCalled();
+    expect(ipc.toolchainStatus).toHaveBeenCalled();
     expect(
       within(screen.getByText("Claude CLI").closest("label")!).getByText(/Rilevato/),
     ).toBeInTheDocument();
+  });
+
+  test("autofills binary path fields from detected tools when empty", async () => {
+    (ipc.settingsLoad as any).mockResolvedValue(
+      makeSettings({
+        yt_dlp_path: null,
+        claude_cli_path: null,
+        codex_cli_path: null,
+        antigravity_cli_path: null,
+      }),
+    );
+    (ipc.aiCliStatus as any).mockResolvedValue({
+      ...makeAiCliStatus(),
+      claude: { found: true, path: "/usr/local/bin/claude", version: "1.2.3" },
+      codex: { found: true, path: "/usr/local/bin/codex", version: "0.9.0" },
+      antigravity: { found: true, path: "/usr/local/bin/antigravity", version: "0.3.0" },
+    });
+    (ipc.toolchainStatus as any).mockResolvedValue({
+      ...makeToolchainStatus(),
+      ytdlp: { found: true, path: "/usr/local/bin/yt-dlp", version: "2026.01.01" },
+    });
+
+    renderSettings();
+
+    expect(await screen.findByDisplayValue("/usr/local/bin/yt-dlp")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("/usr/local/bin/claude")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("/usr/local/bin/codex")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("/usr/local/bin/antigravity")).toBeInTheDocument();
   });
 
   test("saves provider settings and shows verified state", async () => {
@@ -84,7 +115,12 @@ describe("SettingsPage", () => {
     await waitFor(() =>
       expect(ipc.settingsSetAnthropicKey).toHaveBeenCalledWith("sk-ant-test"),
     );
-    expect(ipc.settingsSave).toHaveBeenCalledWith(makeSettings());
+    expect(ipc.settingsSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ...makeSettings(),
+        yt_dlp_path: "/tmp/yt-dlp",
+      }),
+    );
     expect(ipc.settingsTestProvider).toHaveBeenCalledWith("anthropic_api");
     expect(await screen.findByText(/Impostazioni verificate/)).toBeInTheDocument();
   });

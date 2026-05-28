@@ -50,7 +50,8 @@ export type ProviderId =
   | "openai_api"
   | "ollama"
   | "claude_cli"
-  | "codex_cli";
+  | "codex_cli"
+  | "antigravity_cli";
 
 export type TranscriptionProviderId = "groq_api" | "openai_api";
 
@@ -62,6 +63,8 @@ export interface AppSettings {
   ollama_base_url: string | null;
   claude_cli_path: string | null;
   codex_cli_path: string | null;
+  yt_dlp_path: string | null;
+  antigravity_cli_path: string | null;
   transcription_provider: TranscriptionProviderId;
   model_preset: ModelPreset;
   /** Per-provider model id used when `model_preset === "custom"`. */
@@ -95,6 +98,7 @@ export interface AiCliStatus {
   claude: ToolStatus;
   codex: ToolStatus;
   ollama: ToolStatus;
+  antigravity: ToolStatus;
 }
 
 export interface ToolchainStatus {

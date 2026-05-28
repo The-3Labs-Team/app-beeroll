@@ -24,6 +24,7 @@ pub struct AiCliStatus {
     pub claude: ToolStatus,
     pub codex: ToolStatus,
     pub ollama: ToolStatus,
+    pub antigravity: ToolStatus,
 }
 
 /// Result of a successful auto-install of yt-dlp.
@@ -72,6 +73,26 @@ fn ytdlp_bin_dir(app: &AppHandle) -> AppResult<PathBuf> {
 ///      a guaranteed fallback when nothing's on PATH (the app must work for
 ///      users who don't already have yt-dlp installed).
 pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
+    // Check if the user specified a custom path for yt-dlp in the settings.
+    if let Ok(settings) = crate::settings_store::SettingsStore::load_settings() {
+        if let Some(ref path_str) = settings.yt_dlp_path {
+            if !path_str.trim().is_empty() {
+                let path = PathBuf::from(path_str);
+                if path.exists() {
+                    let version = ytdlp_version(&path).await.ok();
+                    tracing::info!(
+                        "Using custom yt-dlp path from settings at {:?} (version {:?})",
+                        path,
+                        version
+                    );
+                    return Ok(YtdlpInstall { path, version });
+                } else {
+                    tracing::warn!("Custom yt-dlp path does not exist: {:?}", path);
+                }
+            }
+        }
+    }
+
     if let Some(install) = which_ytdlp_install().await {
         tracing::info!(
             "yt-dlp found on PATH at {:?} (version {:?}) — preferring over standalone bundle",
@@ -91,11 +112,13 @@ pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
     let need_update = !need_install && should_check_update(&bin_dir).await;
 
     let mut version_just_probed = false;
+    let mut downloaded_this_run = false;
     if need_install || need_update {
         // For auto-update we tolerate transient network failures: the existing
         // binary is still usable. For first-install the failure must surface.
         match download_ytdlp(&local_path, asset_name).await {
             Ok(()) => {
+                downloaded_this_run = true;
                 mark_update_check(&bin_dir).await;
                 // Probe the version once now and cache it to disk. On macOS
                 // the PyInstaller-frozen yt-dlp takes ~15-20s on each
@@ -118,7 +141,31 @@ pub async fn ensure_ytdlp(app: &AppHandle) -> AppResult<YtdlpInstall> {
         }
     }
 
-    let version = read_cached_version(&bin_dir).await;
+    let mut version = read_cached_version(&bin_dir).await;
+
+    // After any download/update, insist on a successful process spawn to avoid
+    // keeping a corrupt/truncated binary around. For updates we recover by
+    // deleting the broken local copy and falling back to PATH if available.
+    if downloaded_this_run && version.is_none() {
+        match ytdlp_version(&local_path).await {
+            Ok(v) => {
+                let _ = tokio::fs::write(bin_dir.join(".version"), &v).await;
+                version = Some(v);
+            }
+            Err(e) if !need_install => {
+                tracing::warn!(
+                    "downloaded yt-dlp failed health check after update: {e}; removing local copy and falling back"
+                );
+                let _ = tokio::fs::remove_file(&local_path).await;
+                if let Some(fallback) = which_ytdlp_install().await {
+                    return Ok(fallback);
+                }
+                return Err(e);
+            }
+            Err(e) => return Err(e),
+        }
+    }
+
     if version.is_none() && !version_just_probed {
         // No cached version on disk (older installs predating the cache).
         // Fall back to a one-shot probe so we don't lose the version info
@@ -229,7 +276,7 @@ pub async fn detect_toolchain_with_app(app: &AppHandle) -> ToolchainStatus {
             version,
         }
     } else {
-        detect_one("yt-dlp", &["--version"]).await
+        detect_one("yt-dlp", None, &["--version"]).await
     };
 
     ToolchainStatus {
@@ -246,7 +293,7 @@ pub async fn detect_toolchain_with_app(app: &AppHandle) -> ToolchainStatus {
 /// [`AppHandle`] (e.g. early bootstrap before Tauri's setup hook completes).
 pub async fn detect_toolchain() -> ToolchainStatus {
     ToolchainStatus {
-        ytdlp: detect_one("yt-dlp", &["--version"]).await,
+        ytdlp: detect_one("yt-dlp", None, &["--version"]).await,
         // ffmpeg ships with the app as a Tauri sidecar (see
         // `tauri.conf.json > bundle.externalBin`), so we do not probe PATH.
         ffmpeg: ToolStatus {
@@ -258,17 +305,33 @@ pub async fn detect_toolchain() -> ToolchainStatus {
 }
 
 pub async fn detect_ai_clis() -> AiCliStatus {
+    let settings = crate::settings_store::SettingsStore::load_settings().ok();
+
+    let claude_path = settings.as_ref().and_then(|s| s.claude_cli_path.as_deref());
+    let codex_path = settings.as_ref().and_then(|s| s.codex_cli_path.as_deref());
+    let antigravity_path = settings.as_ref().and_then(|s| s.antigravity_cli_path.as_deref());
+
     AiCliStatus {
-        claude: detect_one("claude", &["--version"]).await,
-        codex: detect_one("codex", &["--version"]).await,
-        ollama: detect_one("ollama", &["--version"]).await,
+        claude: detect_one("claude", claude_path, &["--version"]).await,
+        codex: detect_one("codex", codex_path, &["--version"]).await,
+        ollama: detect_one("ollama", None, &["--version"]).await,
+        antigravity: detect_one("antigravity", antigravity_path, &["--version"]).await,
     }
 }
 
-async fn detect_one(name: &str, args: &[&str]) -> ToolStatus {
-    let path = match which::which(name) {
-        Ok(p) => p,
-        Err(_) => return ToolStatus { found: false, path: None, version: None },
+async fn detect_one(name: &str, custom_path: Option<&str>, args: &[&str]) -> ToolStatus {
+    let path = if let Some(cp) = custom_path {
+        let p = PathBuf::from(cp);
+        if p.exists() {
+            p
+        } else {
+            return ToolStatus { found: false, path: Some(cp.to_string()), version: None };
+        }
+    } else {
+        match which::which(name) {
+            Ok(p) => p,
+            Err(_) => return ToolStatus { found: false, path: None, version: None },
+        }
     };
     let path_str = path.to_string_lossy().into_owned();
     let output = tokio::process::Command::new(&path)

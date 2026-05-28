@@ -171,13 +171,13 @@ fn fcpxml_time(seconds: f64, fps: f64) -> String {
 /// contains a single leading slash on POSIX (`file:///abs/path`).
 fn clip_file_url(project_dir: &Path, output_clip: &str) -> String {
     let abs = project_dir.join(output_clip);
-    let abs_str = abs.to_string_lossy().to_string();
-    let with_slash = if abs_str.starts_with('/') {
-        abs_str
-    } else {
-        format!("/{}", abs_str)
-    };
-    format!("file://{}", with_slash)
+    let mut normalized = abs.to_string_lossy().replace('\\', "/");
+    if !normalized.starts_with('/') {
+        // Windows absolute paths (`C:/...`) must become `/C:/...` to produce a
+        // valid file URI (`file:///C:/...`) for FCPXML consumers.
+        normalized = format!("/{normalized}");
+    }
+    format!("file://{}", normalized)
 }
 
 /// Build an FCPXML 1.10 document for the project. The document contains a
@@ -449,6 +449,18 @@ mod tests {
         let xml = build_fcpxml(&p, std::path::Path::new("/tmp/test"));
         assert!(xml.contains("Q&amp;A &lt;Ep 1&gt;"));
         assert!(!xml.contains("Q&A <Ep 1>"));
+    }
+
+    #[test]
+    fn clip_file_url_normalizes_windows_style_absolute_paths() {
+        let url = clip_file_url(
+            std::path::Path::new("C:/Users/alice/B-Roll Projects/test"),
+            "clips/0001_first.mp4",
+        );
+        assert_eq!(
+            url,
+            "file:///C:/Users/alice/B-Roll Projects/test/clips/0001_first.mp4"
+        );
     }
 
     #[tokio::test]

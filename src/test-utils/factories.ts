@@ -82,6 +82,8 @@ export function makeSettings(
     ollama_base_url: overrides.ollama_base_url ?? null,
     claude_cli_path: overrides.claude_cli_path ?? null,
     codex_cli_path: overrides.codex_cli_path ?? null,
+    yt_dlp_path: overrides.yt_dlp_path ?? null,
+    antigravity_cli_path: overrides.antigravity_cli_path ?? null,
     transcription_provider: overrides.transcription_provider ?? "groq_api",
     model_preset: overrides.model_preset ?? "balanced",
     model_overrides: overrides.model_overrides ?? {},
@@ -103,6 +105,7 @@ export function makeAiCliStatus(): AiCliStatus {
     claude: { found: false, path: null, version: null },
     codex: { found: false, path: null, version: null },
     ollama: { found: false, path: null, version: null },
+    antigravity: { found: false, path: null, version: null },
   };
 }
 

@@ -5,6 +5,7 @@ use std::sync::Arc;
 pub mod anthropic;
 pub mod claude_cli;
 pub mod codex_cli;
+pub mod antigravity_cli;
 pub mod ollama;
 pub mod openai;
 
@@ -24,6 +25,7 @@ pub struct ProviderConfig {
     pub ollama_base_url: Option<String>,
     pub claude_cli_path: Option<String>,
     pub codex_cli_path: Option<String>,
+    pub antigravity_cli_path: Option<String>,
     /// Optional model id override. When `Some`, providers that support a
     /// `with_model` setter (Anthropic, OpenAI, Ollama) use it instead of
     /// their built-in default. CLI providers ignore this.
@@ -92,6 +94,13 @@ pub fn create_provider(
             let provider = match &config.codex_cli_path {
                 Some(p) => codex_cli::CodexCliProvider::new(p.clone()),
                 None => codex_cli::CodexCliProvider::auto_detect()?,
+            };
+            Ok(Arc::new(provider))
+        }
+        "antigravity_cli" => {
+            let provider = match &config.antigravity_cli_path {
+                Some(p) => antigravity_cli::AntigravityCliProvider::new(p.clone()),
+                None => antigravity_cli::AntigravityCliProvider::auto_detect()?,
             };
             Ok(Arc::new(provider))
         }

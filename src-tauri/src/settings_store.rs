@@ -78,6 +78,12 @@ pub struct AppSettings {
     /// Optional override for the path to the `codex` CLI binary. When unset
     /// the binary is resolved via PATH.
     pub codex_cli_path: Option<String>,
+    /// Optional override for the path to the `yt-dlp` executable.
+    #[serde(default)]
+    pub yt_dlp_path: Option<String>,
+    /// Optional override for the path to the `antigravity` CLI binary.
+    #[serde(default)]
+    pub antigravity_cli_path: Option<String>,
     /// Identifier of the audio transcription provider. One of `groq_api`,
     /// `openai_api`. Defaults to `groq_api`.
     #[serde(default = "default_transcription_provider")]
@@ -129,6 +135,8 @@ impl Default for AppSettings {
             ollama_base_url: None,
             claude_cli_path: None,
             codex_cli_path: None,
+            yt_dlp_path: None,
+            antigravity_cli_path: None,
             transcription_provider: DEFAULT_TRANSCRIPTION_PROVIDER.into(),
             model_preset: DEFAULT_MODEL_PRESET.into(),
             model_overrides: HashMap::new(),

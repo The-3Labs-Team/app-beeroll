@@ -84,6 +84,29 @@ pub fn run() {
                             bin_paths.ytdlp =
                                 install.path.to_string_lossy().into_owned();
                         }
+                        // Keep settings.json aligned with the resolved runtime
+                        // binary, but never overwrite an explicit user choice.
+                        if let Ok(mut settings) =
+                            crate::settings_store::SettingsStore::load_settings()
+                        {
+                            let has_custom_path = settings
+                                .yt_dlp_path
+                                .as_deref()
+                                .map(str::trim)
+                                .is_some_and(|p| !p.is_empty());
+                            if !has_custom_path {
+                                settings.yt_dlp_path = Some(
+                                    install.path.to_string_lossy().into_owned(),
+                                );
+                                if let Err(e) =
+                                    crate::settings_store::SettingsStore::save_settings(&settings)
+                                {
+                                    tracing::warn!(
+                                        "failed to persist detected yt-dlp path in settings: {e}"
+                                    );
+                                }
+                            }
+                        }
                         let _ = app_handle.emit(
                             "toolchain:ytdlp:ready",
                             serde_json::json!({

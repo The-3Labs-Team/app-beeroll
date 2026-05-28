@@ -75,6 +75,7 @@ fn build_provider_config(settings: &AppSettings) -> AppResult<ProviderConfig> {
         ollama_base_url: settings.ollama_base_url.clone(),
         claude_cli_path: settings.claude_cli_path.clone(),
         codex_cli_path: settings.codex_cli_path.clone(),
+        antigravity_cli_path: settings.antigravity_cli_path.clone(),
         model: settings.resolved_model(&settings.selected_provider),
     })
 }
@@ -151,7 +152,7 @@ pub async fn project_load(
 }
 
 #[tauri::command]
-pub async fn project_list(state: State<'_, AppState>) -> AppResult<Vec<Project>> {
+pub async fn project_list(_state: State<'_, AppState>) -> AppResult<Vec<Project>> {
     let mut out = Vec::new();
     if !current_projects_root().exists() {
         return Ok(out);
@@ -869,7 +870,7 @@ pub async fn project_delete(state: State<'_, AppState>, slug: String) -> AppResu
 /// recursively. Returns 0 if the project folder doesn't exist (caller can
 /// treat that as "deleted").
 #[tauri::command]
-pub async fn project_size(state: State<'_, AppState>, slug: String) -> AppResult<u64> {
+pub async fn project_size(_state: State<'_, AppState>, slug: String) -> AppResult<u64> {
     let dir = current_projects_root().join(&slug);
     if !dir.exists() {
         return Ok(0);
