@@ -28,9 +28,9 @@ npm run build
 
 if [[ "$SKIP_RUST_TESTS" != "1" ]]; then
   info "Running Rust tests (full suite)"
-  if ! cargo test --manifest-path src-tauri/Cargo.toml; then
+  if ! cargo test --manifest-path src-tauri/Cargo.toml --features test-mocks; then
     warn "Full Rust test suite failed. Retrying without keyring roundtrip tests..."
-    if cargo test --manifest-path src-tauri/Cargo.toml -- --skip set_get_delete_; then
+    if cargo test --manifest-path src-tauri/Cargo.toml --features test-mocks -- --skip set_get_delete_; then
       warn "Proceeding: non-keyring tests passed; keyring failures are expected in restricted environments."
     else
       warn "Rust tests failed beyond keyring constraints."

@@ -19,14 +19,20 @@ path = "src/main.rs"
 name = "video_broll_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
-# Unit-test subprocess mocks (not shipped in the Tauri app bundle).
+[features]
+# Gate test-only subprocess mocks so `tauri build` does not bundle them.
+test-mocks = []
+
+# Lives under dev-bin/ (not src/bin/) so tauri-cli's src/bin disk scan skips them.
 [[bin]]
 name = "mock-echo"
-path = "src/bin/mock_echo.rs"
+path = "dev-bin/mock_echo.rs"
+required-features = ["test-mocks"]
 
 [[bin]]
 name = "mock-sleep"
-path = "src/bin/mock_sleep.rs"
+path = "dev-bin/mock_sleep.rs"
+required-features = ["test-mocks"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

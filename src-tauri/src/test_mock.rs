@@ -43,7 +43,7 @@ fn built_test_bin(name: &str) -> PathBuf {
     let path = target_dir.join(profile).join(format!("{name}.exe"));
     assert!(
         path.is_file(),
-        "test helper {name} missing at {}; run `cargo build --bin {name}`",
+        "test helper {name} missing at {}; run `cargo test --features test-mocks`",
         path.display()
     );
     path

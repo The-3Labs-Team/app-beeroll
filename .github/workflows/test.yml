@@ -40,7 +40,7 @@ jobs:
         run: bash scripts/fetch-binaries.sh
 
       - name: Cargo test
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+        run: cargo test --manifest-path src-tauri/Cargo.toml --features test-mocks
 
       - name: TypeScript check
         run: npx tsc --noEmit
