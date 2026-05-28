@@ -35,19 +35,25 @@ fn sleep_mock_filename() -> &'static str {
 }
 
 fn write_echo_mock(path: &std::path::Path) {
-    if cfg!(windows) {
+    #[cfg(windows)]
+    {
         std::fs::write(path, "@echo off\r\necho %*\r\n").expect("write mock echo cmd");
-    } else {
+    }
+    #[cfg(unix)]
+    {
         std::fs::write(path, "#!/bin/sh\nexec echo \"$@\"\n").expect("write mock echo sh");
         set_executable(path);
     }
 }
 
 fn write_sleep_mock(path: &std::path::Path) {
-    if cfg!(windows) {
+    #[cfg(windows)]
+    {
         std::fs::write(path, "@echo off\r\ntimeout /t 120 /nobreak >nul\r\n")
             .expect("write mock sleep cmd");
-    } else {
+    }
+    #[cfg(unix)]
+    {
         std::fs::write(path, "#!/bin/sh\nexec sleep 120\n").expect("write mock sleep sh");
         set_executable(path);
     }
