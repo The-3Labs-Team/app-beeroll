@@ -61,6 +61,7 @@ impl AIProvider for ClaudeCliProvider {
 mod tests {
     use super::*;
 
+    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
         // /bin/echo prints its args to stdout; this lets us simulate a CLI that

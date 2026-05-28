@@ -59,6 +59,7 @@ impl AIProvider for AntigravityCliProvider {
 mod tests {
     use super::*;
 
+    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
         let provider = AntigravityCliProvider::new("/bin/echo".into());

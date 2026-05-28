@@ -62,6 +62,7 @@ impl AIProvider for CodexCliProvider {
 mod tests {
     use super::*;
 
+    #[cfg_attr(windows, ignore = "uses /bin/echo mock only on Unix")]
     #[tokio::test]
     async fn complete_uses_configured_binary_and_returns_stdout() {
         // /bin/echo prints its args to stdout; we use it as a stand-in for a real
