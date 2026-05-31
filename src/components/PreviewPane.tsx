@@ -75,12 +75,13 @@ export function PreviewPane({
             src={ytSrc}
             title={candidate.title}
             allow="autoplay; encrypted-media"
-            // Tauri's bundled macOS build serves the webview from
-            // `tauri://localhost`; YouTube's embed checker rejects that
-            // custom scheme with "Errore 153 — configurazione del video
-            // player". Suppressing the referrer makes YouTube fall back
-            // to the no-referrer path which always accepts the embed.
-            referrerPolicy="no-referrer"
+            // Since late 2025 YouTube's embed checker REQUIRES a Referer
+            // header — stripping it (the old `no-referrer` workaround) now
+            // triggers "Errore 153 — configurazione del video player".
+            // `strict-origin-when-cross-origin` is YouTube's recommended
+            // policy: it sends the page origin as the referrer, which the
+            // new checker accepts.
+            referrerPolicy="strict-origin-when-cross-origin"
             className="w-full h-full block"
           />
         ) : candidate.stream_url ? (
