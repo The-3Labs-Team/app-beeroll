@@ -99,11 +99,13 @@ describe("SettingsPage", () => {
 
     const ytSection = screen
       .getByText("YouTube Data API v3")
-      .closest("div.border-bee")!;
+      .closest<HTMLElement>("div.border-bee")!;
     expect(within(ytSection).getByText(/Salvata/)).toBeInTheDocument();
 
     // A source without a stored key reads "Nessuna chiave" instead.
-    const pixabaySection = screen.getByText("Pixabay").closest("div.border-bee")!;
+    const pixabaySection = screen
+      .getByText("Pixabay")
+      .closest<HTMLElement>("div.border-bee")!;
     expect(within(pixabaySection).getByText(/Nessuna chiave/)).toBeInTheDocument();
   });
 
@@ -116,7 +118,7 @@ describe("SettingsPage", () => {
 
     const ytSection = screen
       .getByText("YouTube Data API v3")
-      .closest("div.border-bee")!;
+      .closest<HTMLElement>("div.border-bee")!;
     expect(within(ytSection).getByText(/Non salvata/)).toBeInTheDocument();
   });
 
