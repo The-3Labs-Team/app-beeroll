@@ -42,7 +42,7 @@ impl BRollExtractor {
     pub async fn extract(&self, input: ExtractionInput<'_>) -> AppResult<Vec<BRollPoint>> {
         let user_prompt = build_user_prompt(input);
         let raw = self.provider.complete(SYSTEM_PROMPT, &user_prompt).await?;
-        let cleaned = strip_markdown_fences(&raw);
+        let cleaned = strip_trailing_commas(&strip_markdown_fences(&raw));
         let parsed: ExtractionResponse = serde_json::from_str(&cleaned)
             .map_err(|e| AppError::AiResponseInvalid(format!("{e}; raw: {cleaned}")))?;
 
@@ -97,6 +97,52 @@ fn strip_markdown_fences(s: &str) -> String {
     trimmed.to_string()
 }
 
+/// LLMs (notably GPT-4o) frequently emit trailing commas before a closing
+/// `}` or `]`, which `serde_json` rejects strictly. Drop any comma whose next
+/// non-whitespace character is a closer. String-aware so commas inside string
+/// values are never touched.
+fn strip_trailing_commas(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = String::with_capacity(s.len());
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (i, ch) in s.char_indices() {
+        if in_string {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        if ch == '"' {
+            in_string = true;
+            out.push(ch);
+            continue;
+        }
+
+        if ch == ',' {
+            // Peek ahead past whitespace; drop the comma if a closer follows.
+            let next = bytes[i + 1..]
+                .iter()
+                .find(|b| !b.is_ascii_whitespace())
+                .copied();
+            if matches!(next, Some(b'}') | Some(b']')) {
+                continue;
+            }
+        }
+
+        out.push(ch);
+    }
+
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,6 +190,51 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(points.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn extract_tolerates_trailing_commas() {
+        // Mirrors the real GPT-4o failure: trailing comma after each object's
+        // last field, plus the comma inside the phrase string must survive.
+        let provider = Arc::new(MockProvider {
+            response: r#"{
+                "points": [
+                    {
+                        "theme": "ai history",
+                        "phrase": "dalle prime apparizioni, agli LLM, dai chatbot agli agenti IA.",
+                        "keywords": ["historical ai timeline", "ai evolution"],
+                    },
+                    {
+                        "theme": "ai impact",
+                        "phrase": "come tutto questo sta rivoluzionando il mondo.",
+                        "keywords": ["ai impact society", "technological revolution"],
+                    }
+                ]
+            }"#
+            .into(),
+        });
+        let extractor = BRollExtractor::new(provider);
+        let points = extractor
+            .extract(ExtractionInput::PlainText("t"))
+            .await
+            .unwrap();
+        assert_eq!(points.len(), 2);
+        assert_eq!(points[0].theme, "ai history");
+        assert_eq!(
+            points[0].phrase,
+            "dalle prime apparizioni, agli LLM, dai chatbot agli agenti IA."
+        );
+        assert_eq!(points[1].keywords.len(), 2);
+    }
+
+    #[test]
+    fn strip_trailing_commas_preserves_commas_inside_strings() {
+        let input = r#"{"a": "x, y, z", "b": [1, 2,], "c": "ends with comma,",}"#;
+        let cleaned = strip_trailing_commas(input);
+        let v: serde_json::Value = serde_json::from_str(&cleaned).unwrap();
+        assert_eq!(v["a"], "x, y, z");
+        assert_eq!(v["c"], "ends with comma,");
+        assert_eq!(v["b"], serde_json::json!([1, 2]));
     }
 
     #[tokio::test]
