@@ -77,6 +77,36 @@ impl ProjectStore {
         self.save().await
     }
 
+    /// Reset points stuck in a transient in-flight state to `Error`.
+    ///
+    /// `Downloading`, `Processing`, `Searching` and `Picking` are driven by a
+    /// live task that does not survive an app restart (or a crash mid-overlay).
+    /// Their persisted status would otherwise pin the point — and the project —
+    /// in a spinner forever. Flipping them to `Error` on load lets the user
+    /// retry or pick a different video. Returns the number of points reset.
+    pub async fn reset_orphaned_inflight(&self) -> AppResult<usize> {
+        let mut changed = 0;
+        {
+            let mut project = self.project.write().await;
+            for bp in project.broll_points.iter_mut() {
+                if matches!(
+                    bp.status,
+                    BRollStatus::Downloading
+                        | BRollStatus::Processing
+                        | BRollStatus::Searching
+                        | BRollStatus::Picking
+                ) {
+                    bp.status = BRollStatus::Error;
+                    changed += 1;
+                }
+            }
+        }
+        if changed > 0 {
+            self.save().await?;
+        }
+        Ok(changed)
+    }
+
     pub async fn update_broll_point<F>(&self, id: &str, updater: F) -> AppResult<()>
     where
         F: FnOnce(&mut BRollPoint),
@@ -178,5 +208,48 @@ mod tests {
         let reloaded = ProjectStore::load(&tmp.path().join("br-test")).await.unwrap();
         assert_eq!(reloaded.project().await.broll_points.len(), 1);
         assert_eq!(reloaded.project().await.broll_points[0].id, "bp_01");
+    }
+
+    #[tokio::test]
+    async fn reset_orphaned_inflight_flips_live_states_to_error() {
+        let tmp = TempDir::new().unwrap();
+        let store = ProjectStore::create(tmp.path(), "Orphan Test", dummy_voiceover())
+            .await
+            .unwrap();
+        let make = |id: &str, status: BRollStatus| BRollPoint {
+            id: id.into(),
+            theme: "".into(),
+            phrase: "p".into(),
+            t_start: None,
+            t_end: None,
+            keywords: vec!["k".into()],
+            active_keyword: "k".into(),
+            status,
+            selected_video: None,
+            output_clip: None,
+            cached_results: Vec::new(),
+            cached_keyword: None,
+        };
+        store.add_broll_point(make("bp_dl", BRollStatus::Downloading)).await.unwrap();
+        store.add_broll_point(make("bp_proc", BRollStatus::Processing)).await.unwrap();
+        store.add_broll_point(make("bp_done", BRollStatus::Done)).await.unwrap();
+        store.add_broll_point(make("bp_pending", BRollStatus::Pending)).await.unwrap();
+
+        let n = store.reset_orphaned_inflight().await.unwrap();
+        assert_eq!(n, 2);
+
+        // Reload from disk to confirm the reset was persisted.
+        let reloaded = ProjectStore::load(&tmp.path().join("orphan-test")).await.unwrap();
+        let project = reloaded.project().await;
+        let status_of = |id: &str| -> BRollStatus {
+            project.broll_points.iter().find(|b| b.id == id).unwrap().status.clone()
+        };
+        assert!(matches!(status_of("bp_dl"), BRollStatus::Error));
+        assert!(matches!(status_of("bp_proc"), BRollStatus::Error));
+        assert!(matches!(status_of("bp_done"), BRollStatus::Done));
+        assert!(matches!(status_of("bp_pending"), BRollStatus::Pending));
+
+        // Idempotent: a second pass with nothing live resets nothing.
+        assert_eq!(store.reset_orphaned_inflight().await.unwrap(), 0);
     }
 }

@@ -140,10 +140,10 @@ export function PointStatusBar({ point, download }: Props) {
           !
         </div>
         <div className="text-[14px] font-bold tracking-[-0.2px]">
-          Errore — download fallito
+          Errore — download o elaborazione non riusciti
         </div>
         <div className="flex-1 text-[13px] font-medium">
-          Prova a selezionare un altro video.
+          Riprova lo stesso video o selezionane un altro qui sotto.
         </div>
       </div>
     );

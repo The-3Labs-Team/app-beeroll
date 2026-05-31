@@ -42,6 +42,8 @@ describe("PointStatusBar", () => {
     expect(screen.getByText("Saltato")).toBeInTheDocument();
 
     rerender(<PointStatusBar point={makePoint({ status: "error" })} download={undefined} />);
-    expect(screen.getByText("Errore — download fallito")).toBeInTheDocument();
+    expect(
+      screen.getByText("Errore — download o elaborazione non riusciti"),
+    ).toBeInTheDocument();
   });
 });

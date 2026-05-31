@@ -147,6 +147,14 @@ pub async fn project_load(
         return Err(AppError::ProjectNotFound(slug));
     }
     let store = ProjectStore::load(&dir).await?;
+    // A point left in a live state (Downloading/Processing/…) belongs to a task
+    // that died with the previous session — reset it so the project isn't
+    // pinned in a spinner and the user can retry or pick another video.
+    if let Ok(n) = store.reset_orphaned_inflight().await {
+        if n > 0 {
+            tracing::info!(slug = %slug, reset = n, "project_load: reset orphaned in-flight points");
+        }
+    }
     let project = store.project().await;
     *state.current_project.write().await = Some(Arc::new(store));
     Ok(project)
