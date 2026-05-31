@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BRollStatus, VideoCandidate } from "../types";
 import { BeeButton } from "./bee/BeeButton";
-import { openExternal } from "../lib/utils";
+import { openExternal, isMacWebview } from "../lib/utils";
 
 interface Props {
   candidate: VideoCandidate | null;
@@ -53,6 +53,10 @@ export function PreviewPane({
   const ytSrc = `https://www.youtube-nocookie.com/embed/${candidate.video_id}?autoplay=1&mute=${
     muted ? 1 : 0
   }&modestbranding=1&rel=0`;
+  // The YouTube <iframe> embed is blocked in the macOS WKWebView (custom
+  // `tauri://` scheme → Error 153). There we show a thumbnail that opens the
+  // video externally; on Windows the embed works so keep it inline.
+  const canEmbedYouTube = !isMacWebview();
   const isDownloading = pickedPointStatus === "downloading";
   const isPaused = pickedPointStatus === "paused";
   const isProcessing = pickedPointStatus === "processing";
@@ -68,7 +72,7 @@ export function PreviewPane({
   return (
     <div className="flex flex-col h-full p-[18px] gap-3.5 bg-bee-soft overflow-y-auto bee-scroll">
       <div className="aspect-[16/10] bg-bee-ink border-bee border-bee-ink shadow-bee-y-strong overflow-hidden relative">
-        {candidate.source === "youtube" ? (
+        {candidate.source === "youtube" && canEmbedYouTube ? (
           <iframe
             ref={iframeRef}
             key={candidate.video_id + (muted ? "-m" : "-u")}
@@ -84,6 +88,29 @@ export function PreviewPane({
             referrerPolicy="strict-origin-when-cross-origin"
             className="w-full h-full block"
           />
+        ) : candidate.source === "youtube" ? (
+          // macOS fallback: the embed is blocked, so show the thumbnail and
+          // open the video in the system browser on click.
+          <button
+            type="button"
+            onClick={() => openExternal(candidate.url)}
+            title="Guarda su YouTube"
+            className="group w-full h-full relative block cursor-pointer"
+          >
+            <img
+              src={candidate.thumb_url}
+              alt={candidate.title}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5 bg-bee-ink/45 transition-colors group-hover:bg-bee-ink/30">
+              <span className="flex items-center justify-center w-14 h-14 rounded-full bg-[#FF0000] text-white text-[22px] leading-none pl-1 shadow-bee-2">
+                ▶
+              </span>
+              <span className="font-mono text-[11px] font-bold tracking-[0.5px] uppercase text-white">
+                Guarda su YouTube
+              </span>
+            </div>
+          </button>
         ) : candidate.stream_url ? (
           <video
             key={candidate.video_id + (muted ? "-m" : "-u")}

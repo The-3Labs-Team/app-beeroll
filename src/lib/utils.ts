@@ -30,6 +30,19 @@ export async function openExternal(url: string): Promise<void> {
 }
 
 /**
+ * True when running in the macOS WKWebView. There the app is served from the
+ * custom `tauri://localhost` scheme, which YouTube's embed checker rejects
+ * (Error 153) — so the YouTube `<iframe>` preview can't work and we fall back
+ * to a thumbnail that opens the video externally. On Windows the webview uses
+ * an `http://` origin and the embed works. Detected via the user agent so we
+ * don't need the os plugin.
+ */
+export function isMacWebview(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /Macintosh|Mac OS X/.test(navigator.userAgent);
+}
+
+/**
  * Italian relative-time formatter for project rows.
  * Matches the design copy: "Ora", "5 min fa", "2 ore fa", "Ieri", "3 giorni fa", "11/14".
  */
