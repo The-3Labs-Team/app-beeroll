@@ -74,6 +74,17 @@ export interface AppSettings {
   projects_dir: string | null;
 }
 
+/** Which secrets are already stored in the OS keyring. Lets the settings UI
+ * flag a saved key without ever reading the secret value back. */
+export interface KeyPresence {
+  anthropic: boolean;
+  openai: boolean;
+  groq: boolean;
+  youtube: boolean;
+  pixabay: boolean;
+  pexels: boolean;
+}
+
 export interface TranscriptionResult {
   segments: { start: number; end: number; text: string }[];
   full_text: string;

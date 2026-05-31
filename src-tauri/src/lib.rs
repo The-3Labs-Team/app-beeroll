@@ -146,6 +146,7 @@ pub fn run() {
             settings_test_provider,
             settings_load,
             settings_save,
+            settings_keys_present,
             extraction_run,
             transcription_run,
             search_run,

@@ -6,6 +6,7 @@ import type {
   BRollPoint,
   DownloadProgressEvent,
   FirstRunStatus,
+  KeyPresence,
   LogEntry,
   Project,
   ToolchainStatus,
@@ -50,6 +51,7 @@ export const ipc = {
   settingsLoad: () => invoke<AppSettings>("settings_load"),
   settingsSave: (settings: AppSettings) =>
     invoke<void>("settings_save", { settings }),
+  settingsKeysPresent: () => invoke<KeyPresence>("settings_keys_present"),
   aiCliStatus: () => invoke<AiCliStatus>("ai_cli_status"),
   toolchainStatus: () => invoke<ToolchainStatus>("toolchain_status"),
   firstRunStatus: () => invoke<FirstRunStatus>("first_run_status"),

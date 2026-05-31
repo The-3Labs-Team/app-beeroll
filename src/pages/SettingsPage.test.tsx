@@ -6,6 +6,7 @@ import { renderWithRouter } from "../test-utils/render";
 vi.mock("../ipc", () => ({
   ipc: {
     settingsLoad: vi.fn(),
+    settingsKeysPresent: vi.fn(),
     aiCliStatus: vi.fn(),
     toolchainStatus: vi.fn(),
     settingsSetAnthropicKey: vi.fn(),
@@ -29,6 +30,14 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (ipc.settingsLoad as any).mockResolvedValue(makeSettings());
+    (ipc.settingsKeysPresent as any).mockResolvedValue({
+      anthropic: false,
+      openai: false,
+      groq: false,
+      youtube: false,
+      pixabay: false,
+      pexels: false,
+    });
     (ipc.aiCliStatus as any).mockResolvedValue(makeAiCliStatus());
     (ipc.toolchainStatus as any).mockResolvedValue(makeToolchainStatus());
     (ipc.settingsSetAnthropicKey as any).mockResolvedValue(undefined);
@@ -73,6 +82,42 @@ describe("SettingsPage", () => {
     expect(
       within(screen.getByText("Claude CLI").closest("label")!).getByText(/Rilevato/),
     ).toBeInTheDocument();
+  });
+
+  test("flags stored secrets with a 'Salvata' badge", async () => {
+    (ipc.settingsKeysPresent as any).mockResolvedValue({
+      anthropic: false,
+      openai: false,
+      groq: false,
+      youtube: true,
+      pixabay: false,
+      pexels: false,
+    });
+
+    renderSettings();
+    await screen.findByText("Impostazioni");
+
+    const ytSection = screen
+      .getByText("YouTube Data API v3")
+      .closest("div.border-bee")!;
+    expect(within(ytSection).getByText(/Salvata/)).toBeInTheDocument();
+
+    // A source without a stored key reads "Nessuna chiave" instead.
+    const pixabaySection = screen.getByText("Pixabay").closest("div.border-bee")!;
+    expect(within(pixabaySection).getByText(/Nessuna chiave/)).toBeInTheDocument();
+  });
+
+  test("shows an unsaved badge while typing a new key", async () => {
+    renderSettings();
+    await screen.findByText("Impostazioni");
+
+    const input = screen.getByPlaceholderText("API key YouTube (AIza…)");
+    fireEvent.change(input, { target: { value: "AIzaSomeNewKey" } });
+
+    const ytSection = screen
+      .getByText("YouTube Data API v3")
+      .closest("div.border-bee")!;
+    expect(within(ytSection).getByText(/Non salvata/)).toBeInTheDocument();
   });
 
   test("autofills binary path fields from detected tools when empty", async () => {

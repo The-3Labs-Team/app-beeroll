@@ -264,6 +264,31 @@ pub async fn settings_save(settings: AppSettings) -> AppResult<()> {
     SettingsStore::save_settings(&settings)
 }
 
+/// Whether each secret is currently present in the OS keyring. Lets the
+/// settings UI show a "saved" indicator without ever exposing the secret
+/// value itself (the keys never leave the keyring).
+#[derive(Serialize)]
+pub struct KeyPresence {
+    pub anthropic: bool,
+    pub openai: bool,
+    pub groq: bool,
+    pub youtube: bool,
+    pub pixabay: bool,
+    pub pexels: bool,
+}
+
+#[tauri::command]
+pub async fn settings_keys_present() -> AppResult<KeyPresence> {
+    Ok(KeyPresence {
+        anthropic: SettingsStore::get_anthropic_key()?.is_some(),
+        openai: SettingsStore::get_openai_key()?.is_some(),
+        groq: SettingsStore::get_groq_key()?.is_some(),
+        youtube: SettingsStore::get_youtube_key()?.is_some(),
+        pixabay: SettingsStore::get_pixabay_key()?.is_some(),
+        pexels: SettingsStore::get_pexels_key()?.is_some(),
+    })
+}
+
 #[tauri::command]
 pub async fn extraction_run(
     app: AppHandle,

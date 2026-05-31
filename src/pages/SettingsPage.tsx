@@ -5,6 +5,7 @@ import { ipc } from "../ipc";
 import type {
   AiCliStatus,
   AppSettings,
+  KeyPresence,
   ModelPreset,
   ProviderId,
   ToolchainStatus,
@@ -109,6 +110,36 @@ function resolveModelClient(
 const beeInputClass =
   "w-full h-[46px] border-bee border-bee-ink bg-white px-3.5 font-mono text-[13px] font-medium text-bee-ink outline-none transition-shadow duration-75 focus:shadow-[5px_5px_0_#FFD60A] placeholder:text-bee-mute placeholder:font-normal";
 
+/**
+ * Tri-state pill shown next to each secret field. Secrets live in the OS
+ * keyring and are never read back into the UI, so without this badge an empty
+ * field is ambiguous — you can't tell a saved-but-hidden key from a missing
+ * one. `typing` (input non-empty) takes priority to signal an unsaved edit.
+ */
+function KeyStatusBadge({ present, typing }: { present: boolean; typing: boolean }) {
+  const base =
+    "font-mono text-[10px] font-bold tracking-[0.4px] uppercase px-1.5 py-0.5 border-2";
+  if (typing) {
+    return (
+      <span className={`${base} border-bee-ink bg-bee-yellow text-bee-ink`}>
+        ✎ Non salvata
+      </span>
+    );
+  }
+  if (present) {
+    return (
+      <span className={`${base} border-green-700 bg-green-50 text-green-700`}>
+        ✓ Salvata
+      </span>
+    );
+  }
+  return (
+    <span className={`${base} border-bee-mute bg-white text-bee-mute`}>
+      Nessuna chiave
+    </span>
+  );
+}
+
 function withAutodetectedBinPaths(
   settings: AppSettings,
   cliStatus: AiCliStatus,
@@ -133,6 +164,7 @@ export function SettingsPage() {
   const nav = useNavigate();
 
   const [settings, setSettings] = useState<AppSettings | null>(null);
+  const [keysPresent, setKeysPresent] = useState<KeyPresence | null>(null);
   const [anthropicKey, setAnthropicKey] = useState("");
   const [openaiKey, setOpenaiKey] = useState("");
   const [groqKey, setGroqKey] = useState("");
@@ -170,6 +202,8 @@ export function SettingsPage() {
     setPixabayBusy("saving");
     try {
       await ipc.settingsSetPixabayKey(pixabayKey.trim());
+      setPixabayKey("");
+      void refreshKeysPresent();
       setPixabayBusy("testing");
       const ok = await ipc.settingsTestPixabay();
       setPixabayBusy(null);
@@ -192,6 +226,8 @@ export function SettingsPage() {
     setYoutubeBusy("saving");
     try {
       await ipc.settingsSetYoutubeKey(youtubeKey.trim());
+      setYoutubeKey("");
+      void refreshKeysPresent();
       setYoutubeBusy("testing");
       const ok = await ipc.settingsTestYoutube();
       setYoutubeBusy(null);
@@ -214,6 +250,8 @@ export function SettingsPage() {
     setPexelsBusy("saving");
     try {
       await ipc.settingsSetPexelsKey(pexelsKey.trim());
+      setPexelsKey("");
+      void refreshKeysPresent();
       setPexelsBusy("testing");
       const ok = await ipc.settingsTestPexels();
       setPexelsBusy(null);
@@ -228,18 +266,28 @@ export function SettingsPage() {
     }
   };
 
+  const refreshKeysPresent = async () => {
+    try {
+      setKeysPresent(await ipc.settingsKeysPresent());
+    } catch {
+      // Non-fatal: the badge just falls back to "Nessuna chiave".
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       try {
-        const [s, c, t] = await Promise.all([
+        const [s, c, t, k] = await Promise.all([
           ipc.settingsLoad(),
           ipc.aiCliStatus(),
           ipc.toolchainStatus(),
+          ipc.settingsKeysPresent(),
         ]);
         if (cancelled) return;
         setSettings(withAutodetectedBinPaths(s, c, t));
         setCliStatus(c);
+        setKeysPresent(k);
       } catch (e) {
         setErr(String(e));
         setStatus("error");
@@ -306,6 +354,13 @@ export function SettingsPage() {
       }
       await ipc.settingsSave(settings);
 
+      // Clear the now-persisted secrets from the inputs and refresh the
+      // presence badges so saved keys read "✓ Salvata".
+      setAnthropicKey("");
+      setOpenaiKey("");
+      setGroqKey("");
+      await refreshKeysPresent();
+
       setStatus("testing");
       const ok = await ipc.settingsTestProvider(selected);
       if (ok) {
@@ -344,7 +399,13 @@ export function SettingsPage() {
     if (p.id === "anthropic_api") {
       return (
         <div className="mt-3 flex flex-col gap-2">
-          <BeeMonoLabel as="label">Anthropic API key</BeeMonoLabel>
+          <div className="flex items-center justify-between gap-2">
+            <BeeMonoLabel as="label">Anthropic API key</BeeMonoLabel>
+            <KeyStatusBadge
+              present={!!keysPresent?.anthropic}
+              typing={anthropicKey.trim() !== ""}
+            />
+          </div>
           <input
             type="password"
             placeholder="sk-ant-... (lascia vuoto per mantenere)"
@@ -358,7 +419,13 @@ export function SettingsPage() {
     if (p.id === "openai_api") {
       return (
         <div className="mt-3 flex flex-col gap-2">
-          <BeeMonoLabel as="label">OpenAI API key</BeeMonoLabel>
+          <div className="flex items-center justify-between gap-2">
+            <BeeMonoLabel as="label">OpenAI API key</BeeMonoLabel>
+            <KeyStatusBadge
+              present={!!keysPresent?.openai}
+              typing={openaiKey.trim() !== ""}
+            />
+          </div>
           <input
             type="password"
             placeholder="sk-... (lascia vuoto per mantenere)"
@@ -674,7 +741,13 @@ export function SettingsPage() {
                 </div>
                 {settings.transcription_provider === p.id && p.id === "groq_api" && (
                   <div className="mt-3 flex flex-col gap-2">
-                    <BeeMonoLabel as="label">Groq API key</BeeMonoLabel>
+                    <div className="flex items-center justify-between gap-2">
+                      <BeeMonoLabel as="label">Groq API key</BeeMonoLabel>
+                      <KeyStatusBadge
+                        present={!!keysPresent?.groq}
+                        typing={groqKey.trim() !== ""}
+                      />
+                    </div>
                     <input
                       type="password"
                       placeholder="gsk_... (lascia vuoto per mantenere)"
@@ -932,13 +1005,17 @@ export function SettingsPage() {
                 Come ottenerla?
               </button>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <input
                 type="password"
                 placeholder="API key YouTube (AIza…)"
                 value={youtubeKey}
                 onChange={(e) => setYoutubeKey(e.target.value)}
                 className={`flex-1 ${beeInputClass}`}
+              />
+              <KeyStatusBadge
+                present={!!keysPresent?.youtube}
+                typing={youtubeKey.trim() !== ""}
               />
               <BeeButton
                 variant="primary"
@@ -994,6 +1071,10 @@ export function SettingsPage() {
                 onChange={(e) => setPixabayKey(e.target.value)}
                 className={`flex-1 ${beeInputClass}`}
               />
+              <KeyStatusBadge
+                present={!!keysPresent?.pixabay}
+                typing={pixabayKey.trim() !== ""}
+              />
               <BeeButton
                 variant="primary"
                 onClick={savePixabay}
@@ -1040,6 +1121,10 @@ export function SettingsPage() {
                 value={pexelsKey}
                 onChange={(e) => setPexelsKey(e.target.value)}
                 className={`flex-1 ${beeInputClass}`}
+              />
+              <KeyStatusBadge
+                present={!!keysPresent?.pexels}
+                typing={pexelsKey.trim() !== ""}
               />
               <BeeButton
                 variant="primary"
