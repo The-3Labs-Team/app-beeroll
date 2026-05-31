@@ -80,6 +80,7 @@ export const ipc = {
   skipPoint: (point_id: string) => invoke<void>("skip_point", { pointId: point_id }),
   openProjectFolder: (slug?: string) =>
     invoke<void>("open_project_folder", slug ? { slug } : {}),
+  openExternal: (url: string) => invoke<void>("open_external", { url }),
   exportEdl: (outputPath: string) => invoke<void>("export_edl", { outputPath }),
   exportFcpxml: (outputPath: string) => invoke<void>("export_fcpxml", { outputPath }),
   logsGet: (limit?: number) =>

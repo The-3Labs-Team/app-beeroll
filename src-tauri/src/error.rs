@@ -28,6 +28,9 @@ pub enum AppError {
 
     #[error("invalid input: {0}")]
     InvalidInput(String),
+
+    #[error("failed to open externally: {0}")]
+    External(String),
 }
 
 pub type AppResult<T> = std::result::Result<T, AppError>;

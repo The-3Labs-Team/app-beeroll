@@ -1,6 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { openUrl } from "@tauri-apps/plugin-opener";
+import { toast } from "sonner";
+import { ipc } from "../ipc";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -10,17 +11,21 @@ export function cn(...inputs: ClassValue[]) {
  * Open a URL in the user's default system browser.
  *
  * Inside a Tauri webview neither `window.open` nor `<a target="_blank">` reach
- * the OS browser — the webview just swallows them, so external links appear
- * dead (this is exactly why "Apri sulla sorgente" did nothing on the packaged
- * build). Routing through the opener plugin's `openUrl` is the only reliable
- * path. Use as an `onClick` handler and call `preventDefault()` on anchors so
- * the dead native navigation never runs.
+ * the OS browser — the webview swallows them. The JS opener plugin (`openUrl`)
+ * also failed silently in the packaged macOS build, so we route through our own
+ * `open_external` command, which calls the opener plugin's Rust API directly
+ * (bypassing the webview's JS capability scope). Errors surface as a toast
+ * instead of being swallowed. Use as an `onClick` handler and call
+ * `preventDefault()` on anchors so the dead native navigation never runs.
  */
 export async function openExternal(url: string): Promise<void> {
   try {
-    await openUrl(url);
+    await ipc.openExternal(url);
   } catch (err) {
     console.error("openExternal failed", url, err);
+    toast.error("Impossibile aprire il link nel browser", {
+      description: String(err),
+    });
   }
 }
 

@@ -156,6 +156,7 @@ pub fn run() {
             cancel_download,
             skip_point,
             open_project_folder,
+            open_external,
             toolchain_status,
             toolchain_bootstrap,
             toolchain_wait_ready,

@@ -14,6 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
+use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{Mutex as TokioMutex, Notify, RwLock};
 
 pub struct AppState {
@@ -832,6 +833,21 @@ pub async fn skip_point(
     }).await?;
     app.emit("project:updated", &store.project().await).ok();
     Ok(())
+}
+
+/// Open a URL in the system default browser. Calls the opener plugin's Rust
+/// API directly, which bypasses the webview's JS capability scope — the JS
+/// `openUrl` failed silently in the packaged app, so route external links
+/// through this command instead and surface any error to the caller.
+#[tauri::command]
+pub async fn open_external(app: AppHandle, url: String) -> AppResult<()> {
+    let url = url.trim();
+    if url.is_empty() {
+        return Err(AppError::InvalidInput("empty url".into()));
+    }
+    app.opener()
+        .open_url(url, None::<String>)
+        .map_err(|e| AppError::External(e.to_string()))
 }
 
 /// Reveal a project folder in Finder. With `slug = None` opens the currently
