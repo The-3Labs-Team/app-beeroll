@@ -1,6 +1,7 @@
 import { Dialog, DialogContent } from "./ui/dialog";
 import { BeeButton } from "./bee/BeeButton";
 import { BeeMonoLabel } from "./bee/BeeMonoLabel";
+import { openExternal } from "../lib/utils";
 
 interface Props {
   open: boolean;
@@ -84,9 +85,11 @@ export function YoutubeApiHowToDialog({ open, onOpenChange }: Props) {
                 {s.href && (
                   <a
                     href={s.href}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="inline-block mt-2 font-mono text-[10.5px] font-bold tracking-[0.4px] uppercase border-2 border-bee-ink bg-white px-2 py-1 hover:bg-bee-yellow"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      openExternal(s.href!);
+                    }}
+                    className="inline-block mt-2 font-mono text-[10.5px] font-bold tracking-[0.4px] uppercase border-2 border-bee-ink bg-white px-2 py-1 hover:bg-bee-yellow cursor-pointer"
                   >
                     {s.cta ?? "Apri"} ↗
                   </a>

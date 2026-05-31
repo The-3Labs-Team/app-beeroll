@@ -16,6 +16,7 @@ import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
 import { SponsorCard } from "../components/SponsorCard";
 import { YoutubeApiHowToDialog } from "../components/YoutubeApiHowToDialog";
+import { openExternal } from "../lib/utils";
 import logoUrl from "../assets/logo.png";
 
 type Status = "idle" | "saving" | "testing" | "ok" | "error";
@@ -976,14 +977,16 @@ export function SettingsPage() {
               <h3 className="font-bold text-[15px]">Pixabay</h3>
               <a
                 href="https://pixabay.com/api/docs/"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openExternal("https://pixabay.com/api/docs/");
+                }}
+                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline cursor-pointer"
               >
                 pixabay.com/api/
               </a>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <input
                 type="password"
                 placeholder="API key Pixabay"
@@ -1021,14 +1024,16 @@ export function SettingsPage() {
               <h3 className="font-bold text-[15px]">Pexels</h3>
               <a
                 href="https://www.pexels.com/api/"
-                target="_blank"
-                rel="noreferrer noopener"
-                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  openExternal("https://www.pexels.com/api/");
+                }}
+                className="font-mono text-[11px] text-bee-mute hover:text-bee-ink underline cursor-pointer"
               >
                 pexels.com/api/
               </a>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
               <input
                 type="password"
                 placeholder="API key Pexels"

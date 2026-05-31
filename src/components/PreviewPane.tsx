@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { BRollStatus, VideoCandidate } from "../types";
 import { BeeButton } from "./bee/BeeButton";
+import { openExternal } from "../lib/utils";
 
 interface Props {
   candidate: VideoCandidate | null;
@@ -98,9 +99,11 @@ export function PreviewPane({
             </p>
             <a
               href={candidate.url}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="text-bee-yellow underline font-bold text-sm"
+              onClick={(e) => {
+                e.preventDefault();
+                openExternal(candidate.url);
+              }}
+              className="text-bee-yellow underline font-bold text-sm cursor-pointer"
             >
               ↗ Apri sulla sorgente
             </a>
@@ -169,7 +172,7 @@ export function PreviewPane({
             </button>
             <button
               type="button"
-              onClick={() => window.open(candidate.url, "_blank")}
+              onClick={() => openExternal(candidate.url)}
               title="Apri sulla sorgente"
               className="w-[50px] h-[50px] flex-shrink-0 border-bee border-bee-ink bg-white inline-flex items-center justify-center cursor-pointer transition-[background,transform] duration-75 hover:bg-bee-yellow hover:-translate-x-[1px] hover:-translate-y-[1px]"
             >

@@ -1,10 +1,11 @@
 import { BeeMonoLabel } from "./bee/BeeMonoLabel";
+import { openExternal } from "../lib/utils";
 
 /**
  * Sponsor card surfaced in the right column of the settings page. Static
- * branding for The3LabsTeam — clicking the card opens 3labs.it. Uses an
- * anchor with `target="_blank"` so Tauri routes it through the OS browser via
- * the opener plugin.
+ * branding for The3LabsTeam — clicking the card opens 3labs.it through the OS
+ * browser via the opener plugin (a bare `target="_blank"` is swallowed by the
+ * Tauri webview).
  */
 export function SponsorCard() {
   return (
@@ -14,9 +15,11 @@ export function SponsorCard() {
       </BeeMonoLabel>
       <a
         href="https://3labs.it"
-        target="_blank"
-        rel="noreferrer noopener"
-        className="block border-bee border-bee-ink bg-bee-yellow shadow-bee-3 transition-[transform,box-shadow] duration-100 hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-bee-5"
+        onClick={(e) => {
+          e.preventDefault();
+          openExternal("https://3labs.it");
+        }}
+        className="block border-bee border-bee-ink bg-bee-yellow shadow-bee-3 transition-[transform,box-shadow] duration-100 hover:-translate-x-[2px] hover:-translate-y-[2px] hover:shadow-bee-5 cursor-pointer"
       >
         <div className="border-b-bee border-bee-ink px-4 py-2.5 bg-bee-ink text-bee-yellow flex items-center justify-between">
           <span className="font-mono text-[10px] font-bold tracking-[0.6px] uppercase">
