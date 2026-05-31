@@ -8,6 +8,16 @@
 use crate::error::{AppError, AppResult};
 use crate::process_ext::SilentCommand;
 use std::path::{Path, PathBuf};
+use std::process::Stdio;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Notify;
+
+/// Hard cap for the overlay ffmpeg pass. Clips are capped at ~30s, so a
+/// drawtext re-encode finishes in seconds; anything past this is a hang (e.g.
+/// a corrupt download) and is turned into an error so the point doesn't sit in
+/// "Elaborazione" forever.
+const OVERLAY_TIMEOUT: Duration = Duration::from_secs(120);
 
 pub struct VideoProcessor {
     ffmpeg_path: PathBuf,
@@ -33,6 +43,7 @@ impl VideoProcessor {
         input: &Path,
         output: &Path,
         channel_name: &str,
+        cancel: Arc<Notify>,
     ) -> AppResult<()> {
         let escaped_channel = escape_drawtext(channel_name);
         let escaped_font = self.font_path.to_string_lossy().replace('\\', "/").replace(':', "\\:");
@@ -50,13 +61,38 @@ impl VideoProcessor {
             "-loglevel", "error",
         ];
 
-        let result = tokio::process::Command::new(&self.ffmpeg_path)
+        let child = tokio::process::Command::new(&self.ffmpeg_path)
             .args(args)
             .arg(&output_str)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
             .no_console()
-            .output()
-            .await
+            // Ensure ffmpeg is reaped when its future is dropped (on timeout or
+            // cancellation, the `wait_with_output` future below is dropped).
+            .kill_on_drop(true)
+            .spawn()
             .map_err(|e| AppError::Subprocess(format!("ffmpeg spawn: {e}")))?;
+
+        // Race ffmpeg against the cancel signal and the hard timeout. `biased`
+        // polls the cancel branch first so a cancellation queued while ffmpeg
+        // is running is honored promptly.
+        let result = tokio::select! {
+            biased;
+            _ = cancel.notified() => {
+                return Err(AppError::Cancelled);
+            }
+            res = tokio::time::timeout(OVERLAY_TIMEOUT, child.wait_with_output()) => {
+                match res {
+                    Ok(r) => r.map_err(|e| AppError::Subprocess(format!("ffmpeg wait: {e}")))?,
+                    Err(_) => {
+                        return Err(AppError::Subprocess(format!(
+                            "ffmpeg overlay timed out after {}s — the clip may be corrupt; try another video",
+                            OVERLAY_TIMEOUT.as_secs()
+                        )));
+                    }
+                }
+            }
+        };
         if !result.status.success() {
             let stderr = String::from_utf8_lossy(&result.stderr);
             return Err(AppError::Subprocess(format!("ffmpeg failed: {stderr}")));

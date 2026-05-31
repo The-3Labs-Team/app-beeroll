@@ -705,12 +705,9 @@ pub async fn pick_video(
         }
     };
 
-    // Download succeeded — drop the cancel handle so a subsequent cancel_download
-    // for this point becomes a no-op rather than racing the overlay step.
-    {
-        let mut active = state.active_downloads.lock().await;
-        active.remove(&point_id);
-    }
+    // Keep the cancel handle registered through the overlay step so the user
+    // can still abort during "Elaborazione" (a stuck/slow ffmpeg). It is
+    // removed once the overlay finishes, fails, or is cancelled below.
 
     let idx = project.broll_points.iter().position(|b| b.id == point_id).unwrap_or(0);
     let safe_kw = slug::slugify(&candidate.title);
@@ -738,7 +735,25 @@ pub async fn pick_video(
         VideoSourceId::Pexels => format!("{} \u{00B7} Pexels", candidate.channel),
     };
     tracing::info!(input = ?raw_path, output = ?final_path, "pick_video: starting ffmpeg overlay");
-    if let Err(e) = vp.apply_copyright_overlay(&raw_path, &final_path, &overlay_text).await {
+    let overlay_result = vp
+        .apply_copyright_overlay(&raw_path, &final_path, &overlay_text, cancel.clone())
+        .await;
+
+    // The overlay step is done (succeeded, failed, or was cancelled) — drop the
+    // cancel handle so a later cancel_download for this point is a no-op.
+    {
+        let mut active = state.active_downloads.lock().await;
+        active.remove(&point_id);
+    }
+
+    if let Err(e) = overlay_result {
+        // A user cancellation is owned by `cancel_download`, which already set
+        // the status (Pending) and cleaned up — don't clobber it with Error or
+        // emit a spurious failure toast. Just return quietly.
+        if matches!(e, AppError::Cancelled) {
+            tracing::info!(point_id = %point_id, "pick_video: overlay cancelled by user");
+            return Ok(String::new());
+        }
         tracing::error!(error = %e, "pick_video: ffmpeg failed");
         store.update_broll_point(&point_id, |bp| {
             bp.status = BRollStatus::Error;

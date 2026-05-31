@@ -48,7 +48,12 @@ async fn ffmpeg_overlay_applies_drawtext() {
         font,
     );
     processor
-        .apply_copyright_overlay(&input, &output, "TestChannel")
+        .apply_copyright_overlay(
+            &input,
+            &output,
+            "TestChannel",
+            std::sync::Arc::new(tokio::sync::Notify::new()),
+        )
         .await
         .unwrap();
     assert!(output.exists());

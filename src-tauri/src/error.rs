@@ -31,6 +31,9 @@ pub enum AppError {
 
     #[error("failed to open externally: {0}")]
     External(String),
+
+    #[error("operation cancelled")]
+    Cancelled,
 }
 
 pub type AppResult<T> = std::result::Result<T, AppError>;

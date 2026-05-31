@@ -53,3 +53,22 @@ describe("PreviewPane YouTube preview", () => {
     );
   });
 });
+
+describe("PreviewPane overlay processing", () => {
+  test("shows an Annulla button that triggers onStop", () => {
+    setUserAgent(WIN_UA);
+    const onStop = vi.fn();
+    render(
+      <PreviewPane
+        candidate={makeVideoCandidate({ source: "youtube" })}
+        onCommit={noop}
+        onStop={onStop}
+        pickedPointStatus="processing"
+      />,
+    );
+
+    expect(screen.getByText(/Elaborazione overlay/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /Annulla/ }));
+    expect(onStop).toHaveBeenCalledTimes(1);
+  });
+});

@@ -161,9 +161,14 @@ export function PreviewPane({
             </BeeButton>
           </>
         ) : isProcessing ? (
-          <div className="flex-1 border-bee border-bee-ink bg-bee-yellow text-bee-ink font-bold text-[13px] flex items-center justify-center py-2 animate-pulse">
-            ⚙ Elaborazione overlay…
-          </div>
+          <>
+            <div className="flex-1 border-bee border-bee-ink bg-bee-yellow text-bee-ink font-bold text-[13px] flex items-center justify-center py-2 animate-pulse">
+              ⚙ Elaborazione overlay…
+            </div>
+            <BeeButton variant="dark" onClick={onStop} className="flex-shrink-0 justify-center">
+              ✕ Annulla
+            </BeeButton>
+          </>
         ) : isPaused ? (
           <>
             <BeeButton variant="dark" onClick={onResume} className="flex-1 justify-center">
