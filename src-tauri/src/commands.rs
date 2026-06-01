@@ -146,11 +146,32 @@ pub async fn project_load(
     if !dir.exists() {
         return Err(AppError::ProjectNotFound(slug));
     }
+    // If this project is already loaded in this session, reuse the live store
+    // instead of reloading from disk. Reloading would create a SECOND store
+    // while an in-flight pick_video still holds the first; the two would write
+    // the same project.json from divergent in-memory state, and a stale snapshot
+    // could clobber an already-completed point back to an in-flight status (then
+    // the next reconcile would flag it as Error). The polling refresh that drives
+    // most project_load calls only needs the live state, which the existing store
+    // already holds and keeps current as pick_video updates it.
+    {
+        let cur = state.current_project.read().await;
+        if let Some(store) = cur.as_ref() {
+            if store.project().await.slug == slug {
+                return Ok(store.project().await);
+            }
+        }
+    }
     let store = ProjectStore::load(&dir).await?;
     // A point left in a live state (Downloading/Processing/…) belongs to a task
     // that died with the previous session — reset it so the project isn't
-    // pinned in a spinner and the user can retry or pick another video.
-    if let Ok(n) = store.reset_orphaned_inflight().await {
+    // pinned in a spinner and the user can retry or pick another video. Points
+    // with a live task in THIS session (e.g. a download running right now) are
+    // excluded: a project_load fired mid-download must not flag the active
+    // point as failed.
+    let active: std::collections::HashSet<String> =
+        state.active_downloads.lock().await.keys().cloned().collect();
+    if let Ok(n) = store.reset_orphaned_inflight(&active).await {
         if n > 0 {
             tracing::info!(slug = %slug, reset = n, "project_load: reset orphaned in-flight points");
         }
