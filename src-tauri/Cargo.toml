@@ -1,6 +1,6 @@
 [package]
 name = "video-broll"
-version = "1.0.5"
+version = "1.0.6"
 description = "AI-guided YouTube B-Roll downloader"
 authors = ["you"]
 edition = "2021"

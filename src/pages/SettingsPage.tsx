@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { toast } from "sonner";
 import { ipc } from "../ipc";
 import type {
@@ -215,6 +217,7 @@ export function SettingsPage() {
   const [youtubeHowToOpen, setYoutubeHowToOpen] = useState(false);
   const [keyToRemove, setKeyToRemove] = useState<{ id: KeyId; label: string } | null>(null);
   const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
 
   const savePixabay = async () => {
     if (!pixabayKey.trim()) {
@@ -293,6 +296,28 @@ export function SettingsPage() {
       setKeysPresent(await ipc.settingsKeysPresent());
     } catch {
       // Non-fatal: the badge just falls back to "Nessuna chiave".
+    }
+  };
+
+  // Manual update check — same plugin path as the startup UpdateChecker, but
+  // surfaces every outcome (up-to-date / available / error) via toast so the
+  // updater is testable on demand and failures are visible (e.g. on Windows).
+  const manualUpdateCheck = async () => {
+    setUpdateChecking(true);
+    try {
+      const update = await check();
+      if (!update) {
+        toast.success("Sei già all'ultima versione.");
+        return;
+      }
+      toast.info(`Aggiornamento v${update.version}: download in corso…`);
+      await update.downloadAndInstall();
+      toast.success("Aggiornamento installato. Riavvio…");
+      await relaunch();
+    } catch (e) {
+      toast.error(`Controllo aggiornamenti fallito: ${String(e)}`);
+    } finally {
+      setUpdateChecking(false);
     }
   };
 
@@ -1263,6 +1288,13 @@ export function SettingsPage() {
               >
                 BeeRoll{appVersion ? ` · v${appVersion}` : ""}
               </BeeMonoLabel>
+              <BeeButton
+                variant="default"
+                onClick={manualUpdateCheck}
+                disabled={updateChecking}
+              >
+                {updateChecking ? "Controllo…" : "Controlla aggiornamenti"}
+              </BeeButton>
             </div>
             <SponsorCard />
           </div>

@@ -20,14 +20,22 @@ export function UpdateChecker() {
 
   useEffect(() => {
     let cancelled = false;
+    console.info("[updater] checking for updates…");
     check()
       .then((u) => {
-        if (!cancelled && u) {
+        if (cancelled) return;
+        if (u) {
+          console.info(`[updater] update available: ${u.version} (current ${u.currentVersion})`);
           setUpdate(u);
           setOpen(true);
+        } else {
+          console.info("[updater] up to date (no newer release)");
         }
       })
-      .catch((e) => console.warn("update check failed:", e));
+      .catch((e) => {
+        console.error("[updater] check failed:", e);
+        toast.error(`Controllo aggiornamenti fallito: ${String(e)}`);
+      });
     return () => {
       cancelled = true;
     };
