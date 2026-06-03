@@ -46,7 +46,7 @@ impl VideoProcessor {
         cancel: Arc<Notify>,
     ) -> AppResult<()> {
         let escaped_channel = escape_drawtext(channel_name);
-        let escaped_font = self.font_path.to_string_lossy().replace('\\', "/").replace(':', "\\:");
+        let escaped_font = escape_font_path(&self.font_path);
         let filter = format!(
             "drawtext=text='\u{00A9} {escaped_channel}':x=24:y=h-th-24:fontsize=24:fontcolor=white:box=1:boxcolor=black@0.5:boxborderw=8:fontfile={escaped_font}"
         );
@@ -108,6 +108,21 @@ fn escape_drawtext(s: &str) -> String {
         .replace('%', r"\%")
 }
 
+/// Build the `fontfile=` value for the drawtext filter from a font path.
+///
+/// On Windows, Tauri resolves bundled resources to extended-length paths
+/// carrying the verbatim prefix (`\\?\C:\...`). Left as-is it normalizes to
+/// `//?/C\:/...`, which ffmpeg's drawtext parser rejects with "No option name".
+/// Stripping the prefix first leaves a plain drive path; forward slashes plus
+/// an escaped drive colon then give the `C\:/Users/.../font.ttf` form drawtext
+/// accepts. On Unix there's no prefix or colon, so the path passes through
+/// unchanged.
+fn escape_font_path(path: &Path) -> String {
+    let raw = path.to_string_lossy();
+    let clean = raw.strip_prefix(r"\\?\").unwrap_or(raw.as_ref());
+    clean.replace('\\', "/").replace(':', "\\:")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -116,5 +131,26 @@ mod tests {
     fn escape_drawtext_handles_special_chars() {
         assert_eq!(escape_drawtext("foo:bar"), r"foo\:bar");
         assert_eq!(escape_drawtext("it's"), r"it\'s");
+    }
+
+    #[test]
+    fn escape_font_path_strips_windows_verbatim_prefix() {
+        // The exact shape Tauri hands back for a bundled resource on Windows.
+        let p = Path::new(
+            r"\\?\C:\Users\Doukas\AppData\Local\BeeRoll\resources\fonts\Inter-Regular.ttf",
+        );
+        assert_eq!(
+            escape_font_path(p),
+            r"C\:/Users/Doukas/AppData/Local/BeeRoll/resources/fonts/Inter-Regular.ttf",
+        );
+    }
+
+    #[test]
+    fn escape_font_path_passes_unix_path_through() {
+        let p = Path::new("/Users/toms/Library/fonts/Inter-Regular.ttf");
+        assert_eq!(
+            escape_font_path(p),
+            "/Users/toms/Library/fonts/Inter-Regular.ttf",
+        );
     }
 }
