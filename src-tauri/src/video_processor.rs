@@ -110,17 +110,24 @@ fn escape_drawtext(s: &str) -> String {
 
 /// Build the `fontfile=` value for the drawtext filter from a font path.
 ///
-/// On Windows, Tauri resolves bundled resources to extended-length paths
-/// carrying the verbatim prefix (`\\?\C:\...`). Left as-is it normalizes to
-/// `//?/C\:/...`, which ffmpeg's drawtext parser rejects with "No option name".
-/// Stripping the prefix first leaves a plain drive path; forward slashes plus
-/// an escaped drive colon then give the `C\:/Users/.../font.ttf` form drawtext
-/// accepts. On Unix there's no prefix or colon, so the path passes through
-/// unchanged.
+/// Two Windows-specific hazards have to be defused; on Unix (no verbatim
+/// prefix, no drive colon) the path passes through unchanged:
+///
+/// 1. Tauri resolves bundled resources to extended-length paths carrying the
+///    verbatim prefix (`\\?\C:\...`). Normalized it becomes `//?/C...`, which
+///    ffmpeg can't open — so the prefix is stripped first.
+/// 2. The drive colon must survive ffmpeg's filtergraph parsing, which
+///    un-escapes the description in *two* passes: the outer pass consumes one
+///    backslash, the inner option splitter then treats `:` as a separator. A
+///    single `\:` (the obvious escape) is therefore eaten by the outer pass and
+///    the colon still splits — exactly the "No option name near '…'" failure.
+///    Doubling it to `\\:` leaves `\:` after the outer pass, so the inner pass
+///    sees a properly escaped colon and keeps it literal. The drive letter then
+///    arrives intact as `C\\:/Users/.../font.ttf`.
 fn escape_font_path(path: &Path) -> String {
     let raw = path.to_string_lossy();
     let clean = raw.strip_prefix(r"\\?\").unwrap_or(raw.as_ref());
-    clean.replace('\\', "/").replace(':', "\\:")
+    clean.replace('\\', "/").replace(':', r"\\:")
 }
 
 #[cfg(test)]
@@ -139,9 +146,10 @@ mod tests {
         let p = Path::new(
             r"\\?\C:\Users\Doukas\AppData\Local\BeeRoll\resources\fonts\Inter-Regular.ttf",
         );
+        // Double-backslashed colon so it survives ffmpeg's two un-escaping passes.
         assert_eq!(
             escape_font_path(p),
-            r"C\:/Users/Doukas/AppData/Local/BeeRoll/resources/fonts/Inter-Regular.ttf",
+            r"C\\:/Users/Doukas/AppData/Local/BeeRoll/resources/fonts/Inter-Regular.ttf",
         );
     }
 
