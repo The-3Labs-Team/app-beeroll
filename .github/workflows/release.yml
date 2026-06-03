@@ -68,11 +68,17 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # No code signing for the internal release path: distributing
-          # unsigned bundles to collaborators (control+click → Apri on
-          # macOS, "Esegui comunque" on Windows). Re-add the Apple +
-          # Tauri-updater secrets here when we decide to ship signed
-          # builds. See .github/SIGNING.md for the full list.
+          # No OS code signing for the internal release path: bundles ship
+          # unsigned (control+click → Apri on macOS, "Esegui comunque" on
+          # Windows). Re-add the Apple secrets here when we decide to ship
+          # signed builds. See .github/SIGNING.md for the full list.
+          #
+          # Updater signing (separate from OS signing, REQUIRED for the
+          # auto-updater): these sign the update artifacts and generate the
+          # `latest.json` manifest. The private key is passwordless, so the
+          # password secret is the empty string.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'Video B-Roll ${{ github.ref_name }}'

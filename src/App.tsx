@@ -11,6 +11,7 @@ import { PickerPage } from "./pages/PickerPage";
 import { SummaryPage } from "./pages/SummaryPage";
 import { OnboardingModal } from "./components/OnboardingModal";
 import { LogsDialog } from "./components/LogsDialog";
+import { UpdateChecker } from "./components/UpdateChecker";
 import { BeeWindow } from "./components/BeeWindow";
 import { BeeMonoLabel } from "./components/bee/BeeMonoLabel";
 import { WaitScreen } from "./components/WaitScreen";
@@ -141,6 +142,7 @@ export default function App() {
         <Toaster />
       </BrowserRouter>
       <LogsDialog open={logsOpen} onOpenChange={setLogsOpen} />
+      <UpdateChecker />
     </>
   );
 }

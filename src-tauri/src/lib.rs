@@ -40,6 +40,11 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        // GitHub-backed auto-updater (+ process plugin for relaunch after
+        // install). The frontend drives the check/prompt on startup; these
+        // just expose the commands and permissions it needs.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .manage(build_state())
         .setup(|app| {
             // Resolve the bundled font path (Tauri places resources under
