@@ -17,7 +17,20 @@ export const useStore = create<State>((set) => ({
   currentIndex: 0,
   searchResults: {},
   downloads: {},
-  setProject: (project) => set({ project }),
+  setProject: (project) =>
+    set((s) => {
+      // `searchResults`, `downloads` and `currentIndex` are keyed by / scoped to
+      // the current project's point ids, but ids restart at `bp_01` for every
+      // project. Switching to a different project (or clearing to null) must wipe
+      // these transient maps — otherwise the new project's `bp_01`, `bp_02`… would
+      // surface the previous project's cached search results and download state on
+      // its overlapping points. Same-slug updates (polling refresh, `project:updated`
+      // events) keep the maps intact so in-flight state isn't lost.
+      if (project?.slug !== s.project?.slug) {
+        return { project, searchResults: {}, downloads: {}, currentIndex: 0 };
+      }
+      return { project };
+    }),
   setCurrentIndex: (currentIndex) => set({ currentIndex }),
   setSearchResults: (point_id, results) =>
     set((s) => ({ searchResults: { ...s.searchResults, [point_id]: results } })),
