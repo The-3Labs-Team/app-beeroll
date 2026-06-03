@@ -16,7 +16,7 @@ describe("store.setProject", () => {
     const { setProject, setSearchResults, setCurrentIndex } = useStore.getState();
     setProject(makeProject({ slug: "project-one" }));
     setCurrentIndex(2);
-    setSearchResults("bp_01", [makeVideoCandidate("v1")]);
+    setSearchResults("bp_01", [makeVideoCandidate({ video_id: "v1" })]);
     expect(useStore.getState().searchResults["bp_01"]).toHaveLength(1);
 
     // A different project reuses the same bp_01/bp_02 ids — the previous
@@ -29,7 +29,7 @@ describe("store.setProject", () => {
   it("preserves transient maps across a same-slug refresh", () => {
     const { setProject, setSearchResults } = useStore.getState();
     setProject(makeProject({ slug: "project-one", name: "Before" }));
-    setSearchResults("bp_01", [makeVideoCandidate("v1")]);
+    setSearchResults("bp_01", [makeVideoCandidate({ video_id: "v1" })]);
 
     // Polling refresh / project:updated emit replaces the project object but
     // keeps the same slug — in-flight search results must survive.
