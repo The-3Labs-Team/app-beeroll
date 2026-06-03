@@ -233,6 +233,23 @@ pub async fn settings_set_youtube_key(key: String) -> AppResult<()> {
     SettingsStore::set_youtube_key(&key)
 }
 
+/// Remove a stored API key from the OS keyring. `which` is one of
+/// `anthropic`, `openai`, `groq`, `pixabay`, `pexels`, `youtube`. Deleting a
+/// missing key is a no-op (the underlying delete treats `NoEntry` as success),
+/// so the command is idempotent.
+#[tauri::command]
+pub async fn settings_delete_key(which: String) -> AppResult<()> {
+    match which.as_str() {
+        "anthropic" => SettingsStore::delete_anthropic_key(),
+        "openai" => SettingsStore::delete_openai_key(),
+        "groq" => SettingsStore::delete_groq_key(),
+        "pixabay" => SettingsStore::delete_pixabay_key(),
+        "pexels" => SettingsStore::delete_pexels_key(),
+        "youtube" => SettingsStore::delete_youtube_key(),
+        other => Err(AppError::InvalidInput(format!("unknown key '{other}'"))),
+    }
+}
+
 #[tauri::command]
 pub async fn settings_test_youtube() -> AppResult<bool> {
     let key = SettingsStore::get_youtube_key()?

@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import { getVersion } from "@tauri-apps/api/app";
+import { toast } from "sonner";
 import { ipc } from "../ipc";
 import type {
   AiCliStatus,
   AppSettings,
+  KeyId,
   KeyPresence,
   ModelPreset,
   ProviderId,
@@ -12,6 +15,7 @@ import type {
   TranscriptionProviderId,
 } from "../types";
 import { BeeWindow } from "../components/BeeWindow";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 import { BeeButton } from "../components/bee/BeeButton";
 import { BeeHL } from "../components/bee/BeeHL";
 import { BeeMonoLabel } from "../components/bee/BeeMonoLabel";
@@ -140,6 +144,22 @@ function KeyStatusBadge({ present, typing }: { present: boolean; typing: boolean
   );
 }
 
+/**
+ * Small destructive affordance shown next to a saved key's badge. Styled like
+ * the "Ripristina default" links on the binary-path fields for consistency.
+ */
+function RemoveKeyButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="font-mono text-[10px] font-bold tracking-[0.4px] uppercase text-red-600 hover:underline"
+    >
+      Rimuovi
+    </button>
+  );
+}
+
 function withAutodetectedBinPaths(
   settings: AppSettings,
   cliStatus: AiCliStatus,
@@ -193,6 +213,8 @@ export function SettingsPage() {
     text: "",
   });
   const [youtubeHowToOpen, setYoutubeHowToOpen] = useState(false);
+  const [keyToRemove, setKeyToRemove] = useState<{ id: KeyId; label: string } | null>(null);
+  const [appVersion, setAppVersion] = useState<string | null>(null);
 
   const savePixabay = async () => {
     if (!pixabayKey.trim()) {
@@ -274,6 +296,19 @@ export function SettingsPage() {
     }
   };
 
+  const confirmRemoveKey = async () => {
+    if (!keyToRemove) return;
+    try {
+      await ipc.settingsDeleteKey(keyToRemove.id);
+      await refreshKeysPresent();
+      toast.success(`Chiave ${keyToRemove.label} rimossa`);
+    } catch (e) {
+      toast.error(`Rimozione fallita: ${String(e)}`);
+    } finally {
+      setKeyToRemove(null);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
@@ -294,6 +329,22 @@ export function SettingsPage() {
       }
     };
     void load();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Real app version from the bundle (tauri.conf.json), so the sidebar label
+  // never drifts from the shipped build. Non-fatal outside the Tauri runtime.
+  useEffect(() => {
+    let cancelled = false;
+    getVersion()
+      .then((v) => {
+        if (!cancelled) setAppVersion(v);
+      })
+      .catch(() => {
+        /* leave null → label falls back to "BeeRoll" */
+      });
     return () => {
       cancelled = true;
     };
@@ -401,10 +452,19 @@ export function SettingsPage() {
         <div className="mt-3 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <BeeMonoLabel as="label">Anthropic API key</BeeMonoLabel>
-            <KeyStatusBadge
-              present={!!keysPresent?.anthropic}
-              typing={anthropicKey.trim() !== ""}
-            />
+            <div className="flex items-center gap-2">
+              <KeyStatusBadge
+                present={!!keysPresent?.anthropic}
+                typing={anthropicKey.trim() !== ""}
+              />
+              {keysPresent?.anthropic && (
+                <RemoveKeyButton
+                  onClick={() =>
+                    setKeyToRemove({ id: "anthropic", label: "Anthropic API" })
+                  }
+                />
+              )}
+            </div>
           </div>
           <input
             type="password"
@@ -421,10 +481,19 @@ export function SettingsPage() {
         <div className="mt-3 flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <BeeMonoLabel as="label">OpenAI API key</BeeMonoLabel>
-            <KeyStatusBadge
-              present={!!keysPresent?.openai}
-              typing={openaiKey.trim() !== ""}
-            />
+            <div className="flex items-center gap-2">
+              <KeyStatusBadge
+                present={!!keysPresent?.openai}
+                typing={openaiKey.trim() !== ""}
+              />
+              {keysPresent?.openai && (
+                <RemoveKeyButton
+                  onClick={() =>
+                    setKeyToRemove({ id: "openai", label: "OpenAI API" })
+                  }
+                />
+              )}
+            </div>
           </div>
           <input
             type="password"
@@ -743,10 +812,19 @@ export function SettingsPage() {
                   <div className="mt-3 flex flex-col gap-2">
                     <div className="flex items-center justify-between gap-2">
                       <BeeMonoLabel as="label">Groq API key</BeeMonoLabel>
-                      <KeyStatusBadge
-                        present={!!keysPresent?.groq}
-                        typing={groqKey.trim() !== ""}
-                      />
+                      <div className="flex items-center gap-2">
+                        <KeyStatusBadge
+                          present={!!keysPresent?.groq}
+                          typing={groqKey.trim() !== ""}
+                        />
+                        {keysPresent?.groq && (
+                          <RemoveKeyButton
+                            onClick={() =>
+                              setKeyToRemove({ id: "groq", label: "Groq API" })
+                            }
+                          />
+                        )}
+                      </div>
                     </div>
                     <input
                       type="password"
@@ -1017,6 +1095,13 @@ export function SettingsPage() {
                 present={!!keysPresent?.youtube}
                 typing={youtubeKey.trim() !== ""}
               />
+              {keysPresent?.youtube && (
+                <RemoveKeyButton
+                  onClick={() =>
+                    setKeyToRemove({ id: "youtube", label: "YouTube Data API" })
+                  }
+                />
+              )}
               <BeeButton
                 variant="primary"
                 onClick={saveYoutube}
@@ -1075,6 +1160,13 @@ export function SettingsPage() {
                 present={!!keysPresent?.pixabay}
                 typing={pixabayKey.trim() !== ""}
               />
+              {keysPresent?.pixabay && (
+                <RemoveKeyButton
+                  onClick={() =>
+                    setKeyToRemove({ id: "pixabay", label: "Pixabay" })
+                  }
+                />
+              )}
               <BeeButton
                 variant="primary"
                 onClick={savePixabay}
@@ -1126,6 +1218,11 @@ export function SettingsPage() {
                 present={!!keysPresent?.pexels}
                 typing={pexelsKey.trim() !== ""}
               />
+              {keysPresent?.pexels && (
+                <RemoveKeyButton
+                  onClick={() => setKeyToRemove({ id: "pexels", label: "Pexels" })}
+                />
+              )}
               <BeeButton
                 variant="primary"
                 onClick={savePexels}
@@ -1164,7 +1261,7 @@ export function SettingsPage() {
                 as="div"
                 className="text-[10px] tracking-[0.6px]"
               >
-                BeeRoll · v0.1.0
+                BeeRoll{appVersion ? ` · v${appVersion}` : ""}
               </BeeMonoLabel>
             </div>
             <SponsorCard />
@@ -1174,6 +1271,25 @@ export function SettingsPage() {
       <YoutubeApiHowToDialog
         open={youtubeHowToOpen}
         onOpenChange={setYoutubeHowToOpen}
+      />
+      <ConfirmDialog
+        open={keyToRemove !== null}
+        onOpenChange={(o) => {
+          if (!o) setKeyToRemove(null);
+        }}
+        title="Rimuovere la chiave?"
+        description={
+          keyToRemove && (
+            <>
+              La chiave <strong>{keyToRemove.label}</strong> verrà eliminata dal
+              keychain di sistema. Potrai sempre reinserirla in seguito.
+            </>
+          )
+        }
+        confirmLabel="Rimuovi"
+        cancelLabel="Annulla"
+        danger
+        onConfirm={confirmRemoveKey}
       />
     </BeeWindow>
   );

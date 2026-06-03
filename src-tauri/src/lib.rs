@@ -144,6 +144,7 @@ pub fn run() {
             settings_set_pixabay_key,
             settings_set_pexels_key,
             settings_set_youtube_key,
+            settings_delete_key,
             settings_test_pixabay,
             settings_test_pexels,
             settings_test_youtube,

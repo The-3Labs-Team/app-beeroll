@@ -85,6 +85,9 @@ export interface KeyPresence {
   pexels: boolean;
 }
 
+/** Identifier of a stored API key, accepted by `settings_delete_key`. */
+export type KeyId = keyof KeyPresence;
+
 export interface TranscriptionResult {
   segments: { start: number; end: number; text: string }[];
   full_text: string;
