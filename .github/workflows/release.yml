@@ -23,7 +23,7 @@ jobs:
       # step. Re-add a row here when we want Linux back.
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Setup Node
         uses: actions/setup-node@v6
