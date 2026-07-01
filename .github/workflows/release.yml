@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: bash scripts/fetch-binaries.sh x86_64-pc-windows-msvc
 
-      - uses: tauri-apps/tauri-action@v0
+      - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # No OS code signing for the internal release path: bundles ship
